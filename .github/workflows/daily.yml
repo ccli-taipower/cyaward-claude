@@ -1,0 +1,58 @@
+name: Daily Cy Young Ranking
+
+on:
+  schedule:
+    - cron: "0 11 * * *"   # 11:00 UTC = 19:00 Taiwan time, well after MLB game day
+  workflow_dispatch:        # also support manual triggers
+
+permissions:
+  contents: write           # needed to push commits
+
+jobs:
+  rank-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Cache pybaseball
+        uses: actions/cache@v4
+        with:
+          path: ~/.pybaseball
+          key: pybaseball-${{ runner.os }}
+
+      - name: Install dependencies
+        run: |
+          python -m venv .venv
+          source .venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Run daily pipeline (with up to 3 retries)
+        run: |
+          source .venv/bin/activate
+          for attempt in 1 2 3; do
+            if python -m src.cli.daily; then
+              exit 0
+            fi
+            echo "Attempt $attempt failed; sleeping..."
+            sleep $((attempt * 60))
+          done
+          exit 1
+
+      - name: Commit artifacts if changed
+        run: |
+          git config user.name  "cyaward-bot"
+          git config user.email "cyaward-bot@users.noreply.github.com"
+          git add data/predictions site/index.html
+          if git diff --cached --quiet; then
+            echo "No changes today."
+          else
+            git commit -m "data: daily ranking $(date -u +%Y-%m-%d)"
+            git push
+          fi

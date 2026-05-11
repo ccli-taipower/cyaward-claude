@@ -11,3 +11,8 @@ venv/
 
 # Generated artifacts kept in git EXCEPT large caches
 data/raw/
+
+# Phase 2: current-season FG/standings caches are regenerated daily.
+# Historical years (2015-2025) stay committed as reproducibility snapshots.
+data/historical/fg_pitching_2026.csv
+data/historical/standings_2026.csv
