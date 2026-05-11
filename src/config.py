@@ -19,7 +19,7 @@ TRAINING_MIN_IP = 50
 # Vote share denominator: 30 voters × 7 points for first-place
 MAX_BBWAA_POINTS = 210
 
-# Feature columns (19 total — per spec section 1.2)
+# Feature columns (26 total: 10 traditional + 6 sabermetric + 6 Statcast + 4 context)
 TRADITIONAL_COLS = ["W", "L", "ERA", "IP", "K", "BB", "WHIP", "CG", "ShO", "SV"]
 SABERMETRIC_COLS = ["fWAR", "FIP", "xFIP", "K-BB%", "ERA-", "FIP-"]
 STATCAST_COLS = ["xERA", "xwOBA_against", "Stuff+", "Location+", "Barrel%", "HardHit%"]

@@ -53,7 +53,7 @@
 
 ### 1.2 模型層
 
-**特徵清單**（19 個）：
+**特徵清單**（26 個：10 傳統 + 6 sabermetric + 6 Statcast + 4 context）：
 
 | 類別 | 特徵 |
 |---|---|
@@ -314,7 +314,7 @@ cyaward-claude/
 | 資料來源 | pybaseball | 一站式包裝 FanGraphs + Statcast + Bref + Lahman |
 | 訓練年份 | 2015-2024（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
 | 樣本構成 | IP ≥ 50 含未得票者 | 讓模型學完整分布而非極端值 |
-| 特徵 | 19 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
+| 特徵 | 26 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
 | 模型 | GradientBoosting + Ridge baseline | XGBoost 對小資料無顯著優勢、增加 dep |
 | 驗證 | LOOCV 為主 + time-series split 為輔 | 9 年都被當過 test，最大化驗證樣本 |
 | 通過標準 | 14/18 冠軍 + 2.0/3 podium + 7/10 top10 | 嚴格但留出「voter 跌破眼鏡」空間 |

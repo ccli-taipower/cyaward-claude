@@ -203,8 +203,8 @@ def test_kpi_targets_match_spec():
 
 
 def test_feature_cols_count():
-    # 19 features per spec
-    assert len(config.FEATURE_COLS) == 19
+    # 26 features per spec (10 traditional + 6 sabermetric + 6 statcast + 4 context)
+    assert len(config.FEATURE_COLS) == 26
 
 
 def test_paths_resolve():
@@ -241,13 +241,13 @@ TRAINING_MIN_IP = 50
 # Vote share denominator: 30 voters × 7 points for first-place
 MAX_BBWAA_POINTS = 210
 
-# Feature columns (19 total — per spec section 1.2)
+# Feature columns (26 total: 10 traditional + 6 sabermetric + 6 statcast + 4 context)
 TRADITIONAL_COLS = ["W", "L", "ERA", "IP", "K", "BB", "WHIP", "CG", "ShO", "SV"]
 SABERMETRIC_COLS = ["fWAR", "FIP", "xFIP", "K-BB%", "ERA-", "FIP-"]
 STATCAST_COLS = ["xERA", "xwOBA_against", "Stuff+", "Location+", "Barrel%", "HardHit%"]
 CONTEXT_COLS = ["role_SP", "league_AL", "team_winning_pct", "RS_per_9"]
 FEATURE_COLS = TRADITIONAL_COLS + SABERMETRIC_COLS + STATCAST_COLS + CONTEXT_COLS
-assert len(FEATURE_COLS) == 19
+assert len(FEATURE_COLS) == 26
 
 # Paths
 AWARDS_PARQUET = HISTORICAL_DIR / "awards_history.parquet"
@@ -618,7 +618,7 @@ git commit -m "feat(fetch): Cy Young vote-share loader from Lahman + Chadwick"
 - Create: `src/features.py`
 - Test: `tests/test_features.py`
 
-`build_features(year, fg_df, bref_df, standings_df, awards_df)` returns one DataFrame: each row = one pitcher-season with all 19 feature columns plus the `vote_share` label.
+`build_features(year, fg_df, bref_df, standings_df, awards_df)` returns one DataFrame: each row = one pitcher-season with all 26 feature columns plus the `vote_share` label.
 
 Joining strategy: FanGraphs is the spine (most pitchers); left-join B-Ref (for bWAR/Holds), standings (for team_winning_pct), awards (for label — left join then fill 0).
 
@@ -1866,7 +1866,7 @@ MLB Cy Young Award voter-share regression model.
 
 ## What this is
 
-A regression model that learns BBWAA voter behavior from historical Cy Young voting (2015-2024 excluding 2020) and predicts vote shares from pitcher stats. The model uses 19 features spanning traditional stats (W, ERA, IP), sabermetrics (fWAR, FIP, K-BB%), Statcast (xERA, Stuff+, Barrel%), and team context (winning %, run support).
+A regression model that learns BBWAA voter behavior from historical Cy Young voting (2015-2024 excluding 2020) and predicts vote shares from pitcher stats. The model uses 26 features spanning traditional stats (W, ERA, IP), sabermetrics (fWAR, FIP, K-BB%), Statcast (xERA, Stuff+, Barrel%), and team context (winning %, run support).
 
 It is validated against three tiers of accuracy:
 - 🥇 Winner hits ≥ 14/18 (correctly identify Cy Young winner in ≥ 78% of year-league cases)
@@ -1917,7 +1917,7 @@ docs/superpowers/   # spec + plan
 `fetch.py` → `features.py` → `voter_model.py` → `backtest.py`
 
 - `fetch.py` is the only module that touches the network. All other modules take DataFrames in, return DataFrames out.
-- `features.py` joins FanGraphs / B-Ref / standings / awards into one row per pitcher-season with 19 features + `vote_share` label.
+- `features.py` joins FanGraphs / B-Ref / standings / awards into one row per pitcher-season with 26 features + `vote_share` label.
 - `voter_model.py` trains GradientBoostingRegressor (primary) and Ridge (baseline). Plus an isotonic calibrator that maps predicted vote share to win probability (used in Phase 2).
 - `backtest.py` runs leave-one-year-out CV across the 9 training years, computes the three-tier KPIs, and emits a markdown report.
 

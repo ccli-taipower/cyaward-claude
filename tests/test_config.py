@@ -15,8 +15,6 @@ def test_kpi_targets_match_spec():
 
 def test_feature_cols_count():
     # 26 features: 10 traditional + 6 sabermetric + 6 statcast + 4 context
-    # NOTE: the spec header says "19 個" but the four subcategory lists sum to 26;
-    # this test uses the actual count derived from the spec's feature table.
     assert len(config.FEATURE_COLS) == 26
 
 
