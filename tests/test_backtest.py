@@ -109,3 +109,21 @@ def test_run_timesplit_returns_predictions_for_test_year(synthetic_loocv_input):
     )
     assert (pred["year"] == 2024).all()
     assert "predicted_vote_share" in pred.columns
+
+
+def test_generate_report_contains_kpi_status(sample_predictions_and_truth, tmp_path):
+    pred, truth = sample_predictions_and_truth
+    report_path = tmp_path / "report.md"
+    backtest.generate_report(
+        loocv_pred=pred,
+        truth=truth,
+        timesplit_pred=pred,  # reuse fixture
+        out_path=report_path,
+        model_label="GBR",
+    )
+    text = report_path.read_text()
+    assert "KPI" in text
+    assert "Tier 1" in text
+    assert "Tier 2" in text
+    assert "Tier 3" in text
+    assert "Outlier" in text or "outlier" in text
