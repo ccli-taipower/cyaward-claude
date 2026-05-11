@@ -37,9 +37,9 @@ def rank_today(asof_date: date, year: int = 2026) -> pd.DataFrame:
     if asof_date < eligibility.SEASON_START:
         return pd.DataFrame()
 
-    fg = fetch.get_fangraphs_pitching(year)
+    fg = fetch.get_fangraphs_pitching(year, force_refresh=True)
     bref = fetch.get_bref_pitching(year)
-    standings = fetch.get_team_records(year)
+    standings = fetch.get_team_records(year, force_refresh=True)
 
     # Eligibility: dynamic IP threshold by season progress
     eligible = eligibility.filter_eligible(fg, asof_date)

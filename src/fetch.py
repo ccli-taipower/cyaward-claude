@@ -129,7 +129,7 @@ def _savant_get(year: int) -> pd.DataFrame:
     return df
 
 
-def get_fangraphs_pitching(year: int) -> pd.DataFrame:
+def get_fangraphs_pitching(year: int, force_refresh: bool = False) -> pd.DataFrame:
     """All pitchers, FanGraphs leaderboard (via JSON API).
 
     Uses the FanGraphs /api/leaders/major-league/data endpoint (not the
@@ -137,9 +137,15 @@ def get_fangraphs_pitching(year: int) -> pd.DataFrame:
     Baseball Savant and joins it via MLBAM player ID.
 
     Returns DataFrame with canonical columns plus a `year` column.
+
+    Args:
+        year: Season year to fetch.
+        force_refresh: If True, skip the cache and re-fetch from the network
+            (overwrites the cache file). Use for current-season calls where
+            data changes daily. Historical years should use the default False.
     """
     cache_path = HISTORICAL_DIR / f"fg_pitching_{year}.csv"
-    if cache_path.exists():
+    if cache_path.exists() and not force_refresh:
         return pd.read_csv(cache_path)
 
     print(f"    Fetching FanGraphs pitching data for {year} ...")
@@ -198,15 +204,21 @@ def get_bref_pitching(year: int) -> pd.DataFrame:
     return pd.DataFrame(columns=["Name", "Team", "year", "bWAR"])
 
 
-def get_team_records(year: int) -> pd.DataFrame:
+def get_team_records(year: int, force_refresh: bool = False) -> pd.DataFrame:
     """Final team standings -> winning pct per team.
 
     Uses the MLB Stats API (statsapi.mlb.com) instead of Baseball-Reference
     which is 403-blocked.  Returns team abbreviations in FanGraphs format
     so they join cleanly with get_fangraphs_pitching() output.
+
+    Args:
+        year: Season year to fetch.
+        force_refresh: If True, skip the cache and re-fetch from the network
+            (overwrites the cache file). Use for current-season calls where
+            standings change daily. Historical years should use the default False.
     """
     cache_path = HISTORICAL_DIR / f"standings_{year}.csv"
-    if cache_path.exists():
+    if cache_path.exists() and not force_refresh:
         return pd.read_csv(cache_path)
 
     # Fetch team abbreviations from MLB API

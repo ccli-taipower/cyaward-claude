@@ -68,6 +68,41 @@ def test_get_fangraphs_pitching_kbb_pct_in_percent(tmp_path, monkeypatch):
     assert abs(skubal["K-BB%"] - 25.5) < 0.01
 
 
+def test_get_fangraphs_pitching_force_refresh_skips_cache(tmp_path, monkeypatch):
+    """force_refresh=True should bypass the cache file and re-fetch."""
+    monkeypatch.setattr(fetch, "HISTORICAL_DIR", tmp_path)
+    # Write a stale cache with a sentinel name that shouldn't appear in fresh data
+    cache_path = tmp_path / "fg_pitching_2026.csv"
+    stale_df = pd.DataFrame({
+        "Name": ["StaleGuy"], "WAR": [99], "SO": [0], "xwOBA": [0],
+        "RS/9": [0], "Team": ["XXX"], "IP": [1.0],
+    })
+    stale_df.to_csv(cache_path, index=False)
+
+    with patch("src.fetch._fg_api_get", return_value=_make_fg_api_rows()), \
+         patch("src.fetch._savant_get", return_value=_make_savant_df()):
+        out = fetch.get_fangraphs_pitching(2026, force_refresh=True)
+
+    # Stale cache was skipped; fresh rows from _fg_api_get are present
+    assert "StaleGuy" not in out["Name"].values
+    assert "Tarik Skubal" in out["Name"].values
+
+
+def test_get_fangraphs_pitching_default_uses_cache(tmp_path, monkeypatch):
+    """Default force_refresh=False reads the cache file when it exists."""
+    monkeypatch.setattr(fetch, "HISTORICAL_DIR", tmp_path)
+    cache_path = tmp_path / "fg_pitching_2024.csv"
+    cached = pd.DataFrame({
+        "Name": ["CachedGuy"], "fWAR": [5.0], "K": [200], "xwOBA_against": [0.250],
+        "RS_per_9": [4.5], "Team": ["DET"], "IP": [180.0], "K-BB%": [20.0],
+    })
+    cached.to_csv(cache_path, index=False)
+
+    # No network mocks needed — cache should be served without any fetch call
+    out = fetch.get_fangraphs_pitching(2024)  # force_refresh defaults to False
+    assert "CachedGuy" in out["Name"].values
+
+
 def test_get_bref_pitching_returns_stub():
     """get_bref_pitching is a stub (B-Ref is blocked); should return empty DF."""
     out = fetch.get_bref_pitching(2023)
