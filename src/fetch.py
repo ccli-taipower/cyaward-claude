@@ -10,6 +10,8 @@ from __future__ import annotations
 import pandas as pd
 import pybaseball as pyb
 
+from src.config import MAX_BBWAA_POINTS, LEAGUES
+
 pyb.cache.enable()  # use ~/.pybaseball cache
 
 _FG_RENAME = {
@@ -63,9 +65,6 @@ def get_team_records(year: int) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
-from src.config import MAX_BBWAA_POINTS, LEAGUES
-
-
 def get_awards_history(years: list[int]) -> pd.DataFrame:
     """Cy Young vote shares across requested years.
 
@@ -90,6 +89,6 @@ def get_awards_history(years: list[int]) -> pd.DataFrame:
     name_map["pitcher_name"] = name_map["name_first"] + " " + name_map["name_last"]
     name_map = name_map[["key_bbref", "pitcher_name"]].rename(columns={"key_bbref": "playerID"})
 
-    out = cy.merge(name_map, on="playerID", how="left")
+    out = cy.merge(name_map, on="playerID", how="inner")
     out = out.rename(columns={"yearID": "year", "lgID": "league", "awardID": "award"})
     return out[["year", "league", "playerID", "pitcher_name", "pointsWon", "vote_share", "was_winner", "award"]]
