@@ -4,172 +4,179 @@
 **Status:** Approved (brainstorming complete, awaiting plan)
 **Author:** ccli
 
-## 1. 系統概觀
+## 0. 專案總覽與兩階段框架
 
-### 一句話定位
-每天自動抓 pybaseball 數據，用訓練於 2015-2024 BBWAA 投票結果的迴歸模型，預測「若賽季今天結束，每位投手會拿多少賽揚票」，輸出 AL/NL 各 Top 10 排名網頁與每週 markdown 報告。
+本專案目標：建立一個能準確預測 MLB 賽揚獎的迴歸模型，並套用到 2026 賽季即時資料上。
 
-### 核心使用者旅程
-1. **平日**：用戶任何時間打開 GitHub Pages 網址 → 看到當下 AL Top 10 + NL Top 10 表格，附預測 vote share、投影終值。
-2. **每週一台灣時間早上 10 點**：repo 自動 commit 一份 `reports/2026-Wxx.md` 週報，記錄「過去一週名次變動」「升降幅最大者」「值得關注的新進榜」。
-3. **賽季末**：對照真實 BBWAA 投票結果，model 自我驗證；retrain 為下一季 v2 模型。
+採取**兩階段路線**：
 
-### 系統三層
-```
-[Data Layer]      pybaseball → cache parquet (本地 + Actions cache)
-       ↓
-[Model Layer]     Stage A: stat projector  →  Stage B: vote share regressor
-       ↓
-[Presentation]    static HTML (dashboard) + markdown (weekly report)
-       ↓
-[Delivery]        GitHub Actions cron → Git commit → GitHub Pages
-```
+### Phase 1 — Model & Backtest（本 spec 的 MVP）
+建立並驗證 vote share 迴歸模型，用近 9 年（2015-2024 排除 2020）BBWAA 投票結果做 backtest，**只有當 model 通過驗證標準時才進入 Phase 2**。
 
-### MVP 邊界
-**做**：兩聯盟 Top 10 排名表 + sparkline 趨勢線 + 每週報告。
-**不做**：互動權重滑桿、投手詳情頁、email 通知、季前預測、信賴區間、Vegas odds 對照、其他獎項擴充。這些是 v2+。
+### Phase 2 — Live Dashboard（Phase 1 通過後才做）
+把驗證過的 model 套上 2026 即時資料，產出 GitHub Pages 排名儀表板與每週報告。
+
+> **本 spec 詳細描述兩階段的設計，但 implementation plan 只涵蓋 Phase 1。**
+> Phase 2 預留為設計參考；待 Phase 1 通過 KPI 後再啟動 Phase 2 的 plan。
+
+### 為什麼兩階段
+若 model 在歷史上根本預測不準，後續 dashboard 工程全是白工。先驗證再蓋基礎設施。
 
 ---
 
-## 2. 資料層
+## 1. Phase 1：Model & Backtest
 
-### 抓取對象（透過 pybaseball）
+### 1.1 資料層
+
+**抓取對象**（透過 pybaseball）：
 
 | 來源 | 抓什麼 | 用途 |
 |---|---|---|
-| `pitching_stats` (FanGraphs) | IP, GS, K, BB, ERA, FIP, xFIP, WHIP, K-BB%, fWAR, ERA-, FIP- | 主特徵 + 投影目標 |
+| `pitching_stats` (FanGraphs) | IP, GS, K, BB, ERA, FIP, xFIP, WHIP, K-BB%, fWAR, ERA-, FIP-, **RS/9** | 主特徵 |
 | `statcast_pitcher` 聚合 | xERA, xwOBA against, Stuff+, Location+, Pitching+, Barrel%, Hard Hit% | Statcast 進階特徵 |
 | `pitching_stats_bref` | bWAR, W-L, CG, ShO, SV, HLD | W-L 與 saves（投票者仍重視） |
+| `team_records` | 各隊各年 final winning pct | Team context |
 | Lahman / chadwick `awards` | 歷年 Cy Young 投票完整結果 | 訓練 label |
 
-### 快取策略
-- pybaseball 內建 cache（`pybaseball.cache.enable()`，預設 `~/.pybaseball/`）
-- 額外 layer：本地 parquet `data/raw/pitching_2026_YYYY-MM-DD.parquet`，每天一份 snapshot
-- GitHub Actions 用 `actions/cache` 快取 `~/.pybaseball/`
-
-### 歷史快照保存
-- `data/raw/` 每日 parquet commit 進 git（檔案小，每日 ~50KB）
-- `data/predictions/2026-MM-DD.parquet` model output，commit 進 git
-- 累積後可繪「過去 30 天 Skubal 預測 vote share 趨勢線」
-
-### 速率控制
-- 一天一次 cron
-- 失敗重試 3 次，遞增 backoff（1min / 5min / 15min）
-- pybaseball 因 FanGraphs 改版壞掉時，Actions 失敗 → GitHub 預設 email 通知
-
-### 目錄結構
-```
-cyaward-claude/
-├── data/
-│   ├── raw/                          # 每日 snapshot parquet
-│   ├── historical/                   # 2015-2024 訓練資料（一次性）
-│   └── predictions/                  # 每日 model output
-├── src/
-│   ├── fetch.py                      # pybaseball wrappers
-│   ├── projector.py                  # Stage A: 投影模型
-│   ├── voter_model.py                # Stage B: 得票模型
-│   ├── ranker.py                     # 串接 + 過濾 + 排名
-│   ├── render.py                     # HTML/markdown 生成
-│   └── weekly_report.py              # 週報生成
-├── models/
-│   └── voter_model_v1.pkl            # 訓練好的 sklearn pipeline
-├── site/                             # GitHub Pages root
-│   ├── index.html                    # 每日重建
-│   └── style.css
-├── reports/
-│   └── 2026-Wxx.md                   # 每週報告
-├── .github/workflows/
-│   ├── daily.yml                     # 每日抓資料 + 重建網頁
-│   └── weekly.yml                    # 每週生成週報
-├── notebooks/                        # 模型開發 / 探索性分析
-├── tests/
-├── docs/
-│   └── superpowers/specs/
-└── README.md
-```
-
----
-
-## 3. 模型層
-
-### Stage A: 賽季投影模型 (Projector)
-
-**目標**：把今日累計數據投影到「該投手以類似節奏走完賽季的最終值」。
-
-**MVP v1: Pace × Remaining**
-```python
-projected_IP   = current_IP / current_team_games × 162
-projected_K    = current_K  / current_IP × projected_IP
-projected_xERA = current_xERA          # rate stat 直接沿用
-projected_fWAR = current_fWAR / current_IP × projected_IP
-```
-- SP：用 `team_games` 估剩餘 starts
-- RP：用 `appearance rate per team game` 估剩餘出場
-- **已知缺點**：完全不收斂到聯盟均值；新手投手早季 ERA 0.50 會被外推到全季 0.50（不現實）。Demo 用文字揭露此限制，由 README 說明。
-
-**抽象介面**（為 v2 Marcel 預留）：
-```python
-class Projector(ABC):
-    def project(self, current: pd.DataFrame, asof_date: date) -> pd.DataFrame: ...
-
-class PaceProjector(Projector): ...      # MVP
-class MarcelProjector(Projector): ...    # v2，不在本 MVP
-```
-
-### Stage B: 得票預測模型 (Voter Model)
-
-**訓練資料**：
-- 2015-2024 排除 2020 = 9 個賽季
+**訓練資料構造**：
+- 2015-2024 排除 2020 = **9 個賽季**
 - 每年取每聯盟「IP ≥ 50 的所有投手」（含未得票者，讓模型學完整分布）
 - 每行: `(pitcher, year, league, features..., vote_share)`
 - `vote_share = total_points_received / 210`（210 = 7×30 max possible）
 - 沒得票者 vote_share = 0
-- 預估約 1440 行
+- 預估約 1440 行（9 年 × 2 聯盟 × ~80 投手）
 
-**特徵**：
+**快取策略**：
+- pybaseball 內建 cache（`pybaseball.cache.enable()`，預設 `~/.pybaseball/`）
+- 訓練資料一次性產生：`data/historical/training_2015_2024.parquet`，commit 進 git
+- 後續 retrain 直接讀 parquet，不再打 FanGraphs
+
+### 1.2 模型層
+
+**特徵清單**（19 個）：
 
 | 類別 | 特徵 |
 |---|---|
 | 傳統 | W, L, ERA, IP, K, BB, WHIP, CG, ShO, SV |
 | Sabermetric | fWAR, FIP, xFIP, K-BB%, ERA-, FIP- |
 | Statcast | xERA, xwOBA against, Stuff+, Location+, Barrel%, Hard Hit% |
-| Context | role (SP/RP one-hot), league (AL/NL one-hot), team_winning_pct |
+| Team context | role (SP/RP one-hot), league (AL/NL one-hot), team_winning_pct, **run_support_per_9** |
 
-註：`team_winning_pct` 在**訓練時**用該年度 final winning pct；**推論時**用今日當下 winning pct。這是必要不對稱（訓練時 final 是已知的）；voter 在 11 月投票時也是看 final，所以邏輯一致。
+註 1：`team_winning_pct` 訓練時用 final，推論時用今日當下值；voter 在 11 月投票時也是看 final，所以邏輯一致。
+註 2：`run_support_per_9` 投手的「打線支援」，FanGraphs 提供。投票者雖嘴上說 W-L 不重要，歷史投票仍受其隱含影響；此特徵讓 model 能解構 W-L 中的非投手成分。
 
-**模型**：
-- **MVP**: `GradientBoostingRegressor` (sklearn)
-- 同時保留 `Ridge` 作為 baseline / sanity check
+**模型選擇**：
+- **主模型**：`GradientBoostingRegressor` (sklearn)
+- **Baseline**：`Ridge` regression（同一 pipeline，調參數）
 - **不選 XGBoost/LightGBM**：避免額外 dependency；資料量小差異不大
+- 兩個都跑，比較 metric。Phase 2 預設用 Gradient Boosting；若 Ridge 反而更穩定就改用 Ridge。
 
-**驗證**：
-- Time-series split: train 2015-2022 / val 2023 / test 2024
-- 指標：
-  - Vote share MAE
-  - **Top-3 hit rate**（業務 KPI：預測 Top 3 跟真實 Top 3 重疊幾個）
-  - 真實 winner 落在預測 Top 5 的比率
-- Leave-one-year-out CV 看穩定性
+**訓練輸出**：
+- `models/voter_model_gbr_v1.pkl` — Gradient Boosting 主模型
+- `models/voter_model_ridge_v1.pkl` — Ridge baseline
+- `models/calibrator_v1.pkl` — isotonic regression，把 vote_share 映射到「奪冠機率」（Phase 2 用）
 
-**訓練時機**：
-- 一次性訓練 → `models/voter_model_v1.pkl`，commit 進 repo
-- 每年 11 月 BBWAA 結果出爐後手動 retrain → v2、v3 ...
+### 1.3 驗證 KPI（三層）
 
-### 入榜資格 (Eligibility Filter)
+預測賽揚獎的核心張力是「在 elite 群裡誰最強」，所以 Top-10 命中只是底線；真正的 KPI 是冠軍與頒獎台還原。
 
-SP/RP 分組動態縮放：
+每個聯盟每年產生 1 個冠軍、1 組 Top 3、1 組 Top 10。9 年 × 2 聯盟 = **18 個獨立的 (year, league) cases**。
+
+| Tier | 指標 | **MVP 通過標準** |
+|---|---|---|
+| 🥇 Tier 1：冠軍命中 | `predicted_top1 == actual_top1` 命中次數 / 18 | **≥ 14 / 18 (78%)** |
+| 🥈 Tier 2：Podium 還原 | 18 次中，predicted Top 3 與 actual Top 3 集合重疊數的平均（不論順序） | **≥ 2.0 / 3 (67%)** |
+| 🥉 Tier 3：Top 10 還原 | 18 次中，predicted Top 10 與 actual Top 10 集合重疊數的平均 | **≥ 7 / 10 (70%)** |
+
+**輔助指標**（不是通過標準，但要報告）：
+- Vote share MAE
+- 真實冠軍落在預測 Top 5 的比率
+- Spearman rank correlation between predicted and actual within Top 10
+- Outlier list：歷史上預測冠軍 ≠ 真實冠軍的案例（哪幾年、誰被高估、誰被低估）
+
+### 1.4 驗證方法（雙軌）
+
+**主軌：Leave-One-Year-Out CV**
+- 9 個 fold；每個 fold 留一年當 test，用其他 8 年訓練
+- 收集 9 年的預測，串成 9 年 × 2 聯盟 = 18 個 (year, league) cases，計算上述三層 KPI
+- **這是判定 Phase 1 是否通過的主要依據**
+
+**副軌：Time-Series Split**
+- Train 2015-2022 / val 2023 / test 2024
+- 額外驗證「model 是否會隨時間衰退」（voter behavior 漂移檢測）
+- 報告但不是通過門檻
+
+### 1.5 入榜資格 (Eligibility Filter)
+
+訓練資料用固定門檻：**IP ≥ 50** 即進入訓練集（含未得票者 vote_share = 0）。
+這個門檻在 Phase 1 用即可；Phase 2 才需要動態縮放（針對賽季進行中）。
+
+### 1.6 Phase 1 Definition of Done
+
+通過以下**全部**才算 Phase 1 完成：
+
+1. `data/historical/training_2015_2024.parquet` 成功生成（≥ 1200 rows，含所有特徵且無 critical NaN）
+2. `python -m src.train` 成功訓練 GradientBoosting + Ridge + calibrator，輸出三個 pkl
+3. `python -m src.backtest --method loocv` 成功跑完 9 fold，輸出驗證報告 `reports/backtest_v1.md`
+4. **Backtest 三層 KPI 全部達標**：
+   - 🥇 Tier 1 (冠軍命中) ≥ 14/18
+   - 🥈 Tier 2 (Podium 平均) ≥ 2.0/3
+   - 🥉 Tier 3 (Top 10 平均) ≥ 7/10
+5. Outlier 案例（model 預測錯的年份）有書面分析（`reports/backtest_v1.md` 的「Outlier Analysis」章節）
+6. `pytest` 全綠（unit tests for fetch、feature engineering、model train、backtest metric）
+7. README.md（Phase 1 部分）寫清楚：怎麼跑、資料來源、特徵清單、KPI 結果
+
+**未通過怎麼辦**：
+- 若主要 KPI 未達標 → 進入 model iteration loop（換特徵、換演算法、修 bug、檢查 data leak）
+- **不進入 Phase 2** 直到通過為止
+
+---
+
+## 2. Phase 2：Live Dashboard（Phase 1 通過後啟動）
+
+> 本節是設計藍圖，**不在當前 MVP 的 implementation plan 內**。
+
+### 2.1 即時資料抓取
+
+每日抓 2026 賽季當下累計 stats（FanGraphs + Statcast + Bref），存：
+- `data/raw/pitching_2026_YYYY-MM-DD.parquet`（每日 snapshot）
+- `data/predictions/2026-MM-DD.parquet`（每日 model output）
+- 都 commit 進 git，累積後可繪歷史趨勢線
+
+### 2.2 投影管線（Stage A：Pace × Remaining）
+
 ```python
-SEASON_START = date(2026, 3, 26)              # 2026 MLB 開幕日
-SEASON_END   = date(2026, 9, 27)              # 規律賽結束日（183 天）
+projected_IP   = current_IP / current_team_games × 162
+projected_K    = current_K  / current_IP × projected_IP
+projected_xERA = current_xERA          # rate stat 直接沿用
+projected_fWAR = current_fWAR / current_IP × projected_IP
+```
+
+抽象介面（為 v3 Marcel 預留）：
+```python
+class Projector(ABC):
+    def project(self, current: pd.DataFrame, asof_date: date) -> pd.DataFrame: ...
+
+class PaceProjector(Projector): ...      # Phase 2 MVP
+class MarcelProjector(Projector): ...    # v3
+```
+
+**已知缺點**：完全不收斂到聯盟均值；新手投手早季 ERA 0.50 會被外推到全季 0.50（不現實）。README 揭露此限制。
+
+### 2.3 入榜門檻（動態縮放）
+
+```python
+SEASON_START = date(2026, 3, 26)
+SEASON_END   = date(2026, 9, 27)
 days_elapsed    = (today - SEASON_START).days
 season_progress = days_elapsed / 183
 sp_min_ip = max(25, 162 * season_progress)
 rp_min_ip = max(10,  60 * season_progress)
 ```
-- SP 判定: `GS / G > 0.5`
-- RP 判定: `GS / G ≤ 0.5`
-- 季前（`today < SEASON_START`）→ 不出榜，網頁顯示「season hasn't started」
+- SP 判定: `GS / G > 0.5`；RP 判定: `GS / G ≤ 0.5`
+- 季前（today < SEASON_START）→ 不出榜，網頁顯示「season hasn't started」
 
-### 預測管線串接
+### 2.4 預測管線串接
 
 ```python
 def rank_today(asof_date: date) -> pd.DataFrame:
@@ -181,7 +188,7 @@ def rank_today(asof_date: date) -> pd.DataFrame:
     return assemble_ranking(eligible, projected, predicted_share, win_prob)
 ```
 
-### 輸出 schema
+### 2.5 輸出 schema
 
 | Column | 說明 |
 |---|---|
@@ -190,107 +197,103 @@ def rank_today(asof_date: date) -> pd.DataFrame:
 | `proj_IP`, `proj_ERA`, `proj_fWAR` | Stage A 投影終值 |
 | `predicted_vote_share` | Stage B 預測（0-1） |
 | `predicted_rank_in_league` | 該聯盟內排名 |
-| `win_probability` | 校準後奪冠機率（%）|
+| `win_probability` | 校準後奪冠機率（%） |
 | `delta_7d`, `delta_30d` | 排名 7 日 / 30 日變動 |
 
-### Win Probability 校準
-- 第一版：用 isotonic regression 在 2015-2024 train set 上學「vote_share → was_winner (0/1)」對應
-- 不訓練第二個複雜模型；只是把連續 vote_share 校準成「奪冠機率」直觀數字
+### 2.6 網頁儀表板 (`site/index.html`)
 
----
-
-## 4. Presentation 與 Delivery
-
-### 網頁儀表板 (`site/index.html`)
-
-Vanilla HTML + Jinja2 模板（無 React、無 build pipeline）。
-
-**頁面結構**：
+Vanilla HTML + Jinja2（無 React、無 build pipeline）：
 - Header：標題、截至日期、資料更新時間
 - 兩欄並排（mobile 直排）：AL Top 10 / NL Top 10
-- 每個投手 card：
-  - 排名 + 名字 + 隊伍
-  - 預測 vote share % + 7 日排名變動 (🟢↑ / 🔴↓ / ─)
-  - 關鍵 stats: IP, xERA, fWAR
-  - Sparkline（過去 30 天 vote_share 趨勢）— 純 inline SVG，無 lib；累積天數不足 30 時就畫實際有的（最少 3 天才顯示，否則隱藏）
+- 每個投手 card：排名、名字、隊伍、預測 vote share %、7 日排名變動、IP/xERA/fWAR、sparkline (≥ 3 天才顯示)
 - Footer：方法論、原始碼連結
+- 整檔 ~50KB，零 JS 也能看
 
-**渲染**：
-- `render.py` 用 Jinja2 把 prediction parquet 注入 HTML template
-- Sparkline data inline 進 SVG（無 fetch）
-- 整檔 ~50KB，無外部 dep；零 JS 也能看（漸進增強）
+### 2.7 每週報告 (`reports/2026-Wxx.md`)
 
-### 每週報告 (`reports/2026-Wxx.md`)
-
-Markdown 模板，每週一台灣時間 10:00 自動生成。內容：
-- 本週榜首（AL + NL，附預測 vote share 與奪冠機率）
+每週一台灣時間 10:00 自動生成。內容：
+- 本週榜首（AL + NL）
 - 升降幅最大者（升 + 降各 3-5 位）
 - 新進榜
 - 即將出榜邊緣（#11-15）
-- Top 10 完整名單（兩個 markdown 表格）
-- 模型小註（資料規模、最近的 model-vs-voter 分歧投手）
+- Top 10 完整名單
+- 模型小註
 
-### GitHub Actions
+### 2.8 GitHub Actions
 
-**`.github/workflows/daily.yml`** — `cron: '0 11 * * *'`（每日 UTC 11:00 = 台灣 19:00）：
-1. `actions/cache` restore `~/.pybaseball/`
-2. `pip install -r requirements.txt`
-3. `python -m src.fetch --date today`
-4. `python -m src.ranker --date today`
-5. `python -m src.render --output site/index.html`
-6. commit `data/raw/*.parquet`, `data/predictions/*.parquet`, `site/index.html`
-7. push → GitHub Pages 自動 redeploy
-8. 失敗 retry 3 次（exponential backoff）
+- `daily.yml` cron `0 11 * * *`（每日 UTC 11:00 = 台灣 19:00）：抓資料 → 重建網頁 → commit → push
+- `weekly.yml` cron `0 2 * * 1`（週一 UTC 02:00 = 台灣週一 10:00）：生成週報 → commit → push
+- 失敗 retry 3 次（exponential backoff）；失敗那天**不 commit**，網頁保留前一天版本
 
-**`.github/workflows/weekly.yml`** — `cron: '0 2 * * 1'`（週一 UTC 02:00 = 台灣週一 10:00）：
-1. `python -m src.weekly_report --week current`
-2. commit `reports/2026-Wxx.md`
-3. push
+### 2.9 Phase 2 Definition of Done（待 Phase 1 通過後啟動）
 
-**失敗處理**：失敗那天**不 commit**，網頁保留前一天版本。GitHub 預設發 email 通知。
-
-### 測試策略
-
-**Unit tests** (pytest)：
-- `test_projector.py`：mock current stats → pace projector 輸出符合預期
-- `test_voter_model.py`：載入 pkl model → 在預先存好的 test set 上 assert metric 在 baseline 之上
-- `test_ranker.py`：mock pipeline output → 排名邏輯正確（含 SP/RP 過濾）
-- `test_render.py`：mock prediction df → HTML / markdown 包含預期字段
-
-**Integration test**：
-- `test_pipeline.py`：固定歷史日期（2024-05-11）跑完整 pipeline，assert AL/NL Top 1 合理（非空、IP 達門檻、vote share ∈ [0, 1]）
-
-**Smoke test in Actions**：
-- workflow 結束前 `pytest tests/test_render_output.py`，assert `site/index.html` 含 "Top 10"、"AL"、"NL"
+1. `python -m src.ranker --date 2026-05-11` 在本機成功跑出 AL+NL Top 10
+2. `python -m src.render --date 2026-05-11` 生成可在瀏覽器打開的 `site/index.html`
+3. `python -m src.weekly_report --week current` 生成可讀的 markdown
+4. GitHub Actions `daily.yml` 與 `weekly.yml` 手動觸發成功
+5. GitHub Pages 部署完成、URL 可訪問
+6. Phase 2 unit tests + integration test + smoke test 全綠
+7. README Phase 2 部分完成
 
 ---
 
-## 5. MVP 範圍與後續路線
+## 3. 目錄結構
 
-### MVP v1 — 包含項目
+```
+cyaward-claude/
+├── data/
+│   ├── historical/
+│   │   ├── training_2015_2024.parquet     # Phase 1 訓練資料
+│   │   └── awards_history.parquet         # Cy Young 投票歷史
+│   ├── raw/                                # Phase 2: 每日 snapshot
+│   └── predictions/                        # Phase 2: 每日 model output
+├── src/
+│   ├── fetch.py                # pybaseball wrappers + 訓練資料生成
+│   ├── features.py             # 特徵工程（衍生 K-BB%、ERA-、joins、cleanup）
+│   ├── voter_model.py          # 訓練 + 預測 model
+│   ├── backtest.py             # LOOCV + Time-series split + KPI 計算
+│   ├── projector.py            # Phase 2: Stage A 投影
+│   ├── ranker.py               # Phase 2: 串接管線
+│   ├── render.py               # Phase 2: HTML 生成
+│   └── weekly_report.py        # Phase 2: 週報生成
+├── models/
+│   ├── voter_model_gbr_v1.pkl
+│   ├── voter_model_ridge_v1.pkl
+│   └── calibrator_v1.pkl
+├── reports/
+│   ├── backtest_v1.md          # Phase 1 KPI 報告 + outlier 分析
+│   └── 2026-Wxx.md             # Phase 2: 每週報告
+├── site/                       # Phase 2: GitHub Pages root
+│   ├── index.html
+│   └── style.css
+├── .github/workflows/          # Phase 2
+│   ├── daily.yml
+│   └── weekly.yml
+├── notebooks/                  # 模型開發 / 探索 / outlier 案例研究
+├── tests/
+├── docs/superpowers/specs/
+├── requirements.txt
+└── README.md
+```
 
-- ✅ pybaseball 抓 FanGraphs + Statcast + Lahman awards（歷史）
-- ✅ Pace × Remaining 賽季投影模型
-- ✅ GradientBoosting voter model（2015-22 train / 23 val / 24 test）
-- ✅ SP/RP 動態 IP 門檻
-- ✅ Daily cron 重建 `site/index.html`（兩欄 Top 10 + sparkline）
-- ✅ Weekly cron 生成 `reports/2026-Wxx.md`
-- ✅ Predictions parquet 累積進 git
-- ✅ Unit tests + 1 integration test + smoke test
-- ✅ README 說明方法論、資料來源、限制
+---
 
-### 明確不做（不在 MVP）
+## 4. 風險與已知限制
 
-- ❌ 互動權重滑桿
-- ❌ 投手詳情頁（SHAP 解釋、game log）
-- ❌ Email/Slack 通知
-- ❌ 季前預測
-- ❌ 信賴區間 / uncertainty bands
-- ❌ Vegas / FanDuel odds 對照欄位
-- ❌ MVP / Rookie of the Year 等其他獎項
-- ❌ Marcel-style 投影（介面預留，實作留 v2）
+| Risk | Phase | Impact | Mitigation |
+|---|---|---|---|
+| 訓練樣本只 9 年 (~1440 行) | 1 | 對歷史罕見 profile 泛化弱 | LOOCV 嚴格驗證；Ridge baseline 對照 |
+| 2020 縮水賽季投票邏輯異常 | 1 | 模型混淆 | 排除 |
+| BBWAA 投票偏見漂移 | 1+2 | 例如未來突然又重 W-L | 每年 retrain；Ridge baseline 對照 |
+| pybaseball 因 FanGraphs 改版壞掉 | 1+2 | 抓不到資料 | retry + Phase 2 失敗日不 commit |
+| RS/9 與 W-L 高相關 → 共線性 | 1 | GradientBoosting 不嚴重，但 Ridge 受影響 | Ridge 用 L2 正則；報告兩個模型差異 |
+| Cy Young 偶有「跌破眼鏡」結果（如 2024 NL Sale） | 1 | 部分年份 model 必輸 | KPI 不要求完美（14/18 而非 18/18） |
+| Phase 1 KPI 未達標 | 1 | Phase 2 無法啟動 | model iteration loop（換特徵、換演算法）；可能加 ensemble |
+| Pace projector 早季嚴重外推 | 2 | 4-5 月排名跳動大 | README 揭露；v3 換 Marcel |
 
-### v2+ 路線（依優先序）
+---
+
+## 5. v3+ 路線（Phase 2 通過後）
 
 | Priority | Item | Value |
 |---|---|---|
@@ -302,28 +305,6 @@ Markdown 模板，每週一台灣時間 10:00 自動生成。內容：
 | P3 | Email / RSS 訂閱 | 重大異動推播 |
 | P4 | MVP / RoY 同框架擴充 | 一魚多吃 |
 
-### 風險與已知限制
-
-| Risk | Impact | Mitigation |
-|---|---|---|
-| FanGraphs 改版 → pybaseball 壞 | 每日 pipeline 失敗 | retry + email + 失敗日不 commit |
-| Pace projector 早季嚴重外推 | 4-5 月排名跳動大 | README 揭露；v2 換 Marcel |
-| 訓練樣本只 9 年 | 對歷史罕見 profile 泛化弱 | Time-series CV 監控；新賽季 retrain |
-| 2020 縮水賽季投票邏輯異常 | 模型混淆 | 排除 |
-| BBWAA 投票偏見漂移 | 例如未來突然又重 W-L | 每年 retrain；Ridge baseline 對照 |
-| pybaseball cache 體積 | repo 變大 | 只 commit 每日 snapshot；訓練 raw 不 commit |
-
-### Definition of Done
-
-1. `python -m src.ranker --date 2026-05-11` 在本機成功跑出 AL+NL Top 10
-2. `python -m src.render --date 2026-05-11` 生成可在瀏覽器打開的 `site/index.html`
-3. `python -m src.weekly_report --week current` 生成可讀的 markdown
-4. GitHub Actions `daily.yml` 手動觸發成功 commit + Pages 部署
-5. GitHub Actions `weekly.yml` 手動觸發成功生成週報
-6. `pytest` 全綠（含 1 integration test）
-7. README 寫清楚：怎麼跑、模型方法、資料來源、限制
-8. **Voter model 在 2024 hold-out test set 上 Top-3 hit rate ≥ 2/3**（兩聯盟平均至少預測對 2 個 Top 3）
-
 ---
 
 ## 附錄 A — 主要技術選型摘要
@@ -331,12 +312,14 @@ Markdown 模板，每週一台灣時間 10:00 自動生成。內容：
 | 決策 | 選擇 | 替代方案 / 理由 |
 |---|---|---|
 | 資料來源 | pybaseball | 一站式包裝 FanGraphs + Statcast + Bref + Lahman |
-| 投影模型 | Pace × Remaining (MVP) | v2 換 Marcel；介面預留 |
-| 投票模型 | GradientBoostingRegressor | XGBoost 對小資料無顯著優勢、增加 dep |
-| 訓練年份 | 2015-2024（除 2020） | Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
-| 樣本構成 | 含未得票者（vote_share=0） | 讓模型學完整分布而非極端值 |
-| 入榜門檻 | SP/RP 分組動態縮放 | RP 不會被 162-IP 門檻永遠擋外 |
-| 前端 | Vanilla HTML + Jinja2 | 無 React / 無 build pipeline；v2 加互動再升級 |
-| 部署 | GitHub Pages + GitHub Actions cron | 完全免費、零維運、自帶版本歷史 |
-| 更新節奏 | Daily fetch + Weekly report | 數據新鮮度 vs commit noise 平衡 |
-| 失敗處理 | 不 commit，保留前一天 | 避免顯示假資料 |
+| 訓練年份 | 2015-2024（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
+| 樣本構成 | IP ≥ 50 含未得票者 | 讓模型學完整分布而非極端值 |
+| 特徵 | 19 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
+| 模型 | GradientBoosting + Ridge baseline | XGBoost 對小資料無顯著優勢、增加 dep |
+| 驗證 | LOOCV 為主 + time-series split 為輔 | 9 年都被當過 test，最大化驗證樣本 |
+| 通過標準 | 14/18 冠軍 + 2.0/3 podium + 7/10 top10 | 嚴格但留出「voter 跌破眼鏡」空間 |
+| 投影模型 (P2) | Pace × Remaining MVP | v3 換 Marcel；介面預留 |
+| 入榜門檻 (P2) | SP/RP 分組動態縮放 | RP 不會被 162-IP 門檻永遠擋外 |
+| 前端 (P2) | Vanilla HTML + Jinja2 | 無 React / 無 build pipeline |
+| 部署 (P2) | GitHub Pages + Actions cron | 完全免費、零維運 |
+| 更新節奏 (P2) | Daily fetch + Weekly report | 數據新鮮度 vs commit noise 平衡 |
