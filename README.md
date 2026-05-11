@@ -2,8 +2,12 @@
 
 MLB Cy Young Award voter-share regression model.
 
+### 🔗 Live Dashboard: **https://ccli-taipower.github.io/cyaward-claude/**
+
+Updated daily at ~19:00 Taiwan time (UTC 11:00). AL+NL Top 10 predicted vote shares for the 2026 season.
+
 **Phase 1 (COMPLETE):** model trained and backtested on 2015–2025 BBWAA voting (10 years × 2 leagues = 20 winner slots).  
-**Phase 2 (COMPLETE):** live 2026 dashboard + weekly markdown report; daily/weekly GitHub Actions cron committed. Deployment to GitHub Pages pending repo push.
+**Phase 2 (COMPLETE):** live 2026 dashboard at the URL above + weekly markdown report; daily/weekly GitHub Actions cron deployed.
 
 ---
 
@@ -73,11 +77,11 @@ The pipeline has five layers:
 
 ## Phase 2 — Live Dashboard
 
-**Status:** Implemented; deployment to GitHub Pages pending repo push.
+**Status:** Live at **<https://ccli-taipower.github.io/cyaward-claude/>** — auto-updated daily.
 
 The Phase 2 pipeline applies the validated Phase 1 GBR model to live 2026 stats and produces:
 
-- **Daily HTML dashboard** at `site/index.html` (intended for GitHub Pages) with AL+NL Top 10.
+- **Daily HTML dashboard** at `site/index.html` (served via GitHub Pages) with AL+NL Top 10.
 - **Weekly markdown report** at `reports/2026-Wxx.md` (every Monday) with rank movers and Top 10 snapshot.
 
 ### Local run
