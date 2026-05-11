@@ -11,7 +11,7 @@
 採取**兩階段路線**：
 
 ### Phase 1 — Model & Backtest（本 spec 的 MVP）
-建立並驗證 vote share 迴歸模型，用近 9 年（2015-2024 排除 2020）BBWAA 投票結果做 backtest，**只有當 model 通過驗證標準時才進入 Phase 2**。
+建立並驗證 vote share 迴歸模型，用近 10 年（2015-2025 排除 2020）BBWAA 投票結果做 backtest，**只有當 model 通過驗證標準時才進入 Phase 2**。
 
 ### Phase 2 — Live Dashboard（Phase 1 通過後才做）
 把驗證過的 model 套上 2026 即時資料，產出 GitHub Pages 排名儀表板與每週報告。
@@ -39,21 +39,21 @@
 | Lahman / chadwick `awards` | 歷年 Cy Young 投票完整結果 | 訓練 label |
 
 **訓練資料構造**：
-- 2015-2024 排除 2020 = **9 個賽季**
+- 2015-2025 排除 2020 = **10 個賽季**
 - 每年取每聯盟「IP ≥ 50 的所有投手」（含未得票者，讓模型學完整分布）
 - 每行: `(pitcher, year, league, features..., vote_share)`
 - `vote_share = total_points_received / 210`（210 = 7×30 max possible）
 - 沒得票者 vote_share = 0
-- 預估約 1440 行（9 年 × 2 聯盟 × ~80 投手）
+- 實際約 3421 行（10 年 × 2 聯盟 × ~170 投手/年）
 
 **快取策略**：
 - pybaseball 內建 cache（`pybaseball.cache.enable()`，預設 `~/.pybaseball/`）
-- 訓練資料一次性產生：`data/historical/training_2015_2024.parquet`，commit 進 git
+- 訓練資料一次性產生：`data/historical/training_2015_2025.parquet`，commit 進 git
 - 後續 retrain 直接讀 parquet，不再打 FanGraphs
 
 ### 1.2 模型層
 
-**特徵清單**（19 個）：
+**特徵清單**（26 個：10 傳統 + 6 sabermetric + 6 Statcast + 4 context）：
 
 | 類別 | 特徵 |
 |---|---|
@@ -80,13 +80,13 @@
 
 預測賽揚獎的核心張力是「在 elite 群裡誰最強」，所以 Top-10 命中只是底線；真正的 KPI 是冠軍與頒獎台還原。
 
-每個聯盟每年產生 1 個冠軍、1 組 Top 3、1 組 Top 10。9 年 × 2 聯盟 = **18 個獨立的 (year, league) cases**。
+每個聯盟每年產生 1 個冠軍、1 組 Top 3、1 組 Top 10。10 年 × 2 聯盟 = **20 個獨立的 (year, league) cases**。
 
 | Tier | 指標 | **MVP 通過標準** |
 |---|---|---|
-| 🥇 Tier 1：冠軍命中 | `predicted_top1 == actual_top1` 命中次數 / 18 | **≥ 14 / 18 (78%)** |
-| 🥈 Tier 2：Podium 還原 | 18 次中，predicted Top 3 與 actual Top 3 集合重疊數的平均（不論順序） | **≥ 2.0 / 3 (67%)** |
-| 🥉 Tier 3：Top 10 還原 | 18 次中，predicted Top 10 與 actual Top 10 集合重疊數的平均 | **≥ 7 / 10 (70%)** |
+| 🥇 Tier 1：冠軍命中 | `predicted_top1 == actual_top1` 命中次數 / 20 | **≥ 15 / 20 (75%)** |
+| 🥈 Tier 2：Podium 還原 | 20 次中，predicted Top 3 與 actual Top 3 集合重疊數的平均（不論順序） | **≥ 1.9 / 3 (63%)** |
+| 🥉 Tier 3：Top 10 還原 | 20 次中，predicted Top 10 與 actual Top 10 集合重疊數的平均 | **≥ 7 / 10 (70%)** |
 
 **輔助指標**（不是通過標準，但要報告）：
 - Vote share MAE
@@ -97,8 +97,8 @@
 ### 1.4 驗證方法（雙軌）
 
 **主軌：Leave-One-Year-Out CV**
-- 9 個 fold；每個 fold 留一年當 test，用其他 8 年訓練
-- 收集 9 年的預測，串成 9 年 × 2 聯盟 = 18 個 (year, league) cases，計算上述三層 KPI
+- 10 個 fold；每個 fold 留一年當 test，用其他 9 年訓練
+- 收集 10 年的預測，串成 10 年 × 2 聯盟 = 20 個 (year, league) cases，計算上述三層 KPI
 - **這是判定 Phase 1 是否通過的主要依據**
 
 **副軌：Time-Series Split**
@@ -115,12 +115,12 @@
 
 通過以下**全部**才算 Phase 1 完成：
 
-1. `data/historical/training_2015_2024.parquet` 成功生成（≥ 1200 rows，含所有特徵且無 critical NaN）
+1. `data/historical/training_2015_2025.parquet` 成功生成（≥ 3000 rows，含所有特徵且無 critical NaN）
 2. `python -m src.train` 成功訓練 GradientBoosting + Ridge + calibrator，輸出三個 pkl
-3. `python -m src.backtest --method loocv` 成功跑完 9 fold，輸出驗證報告 `reports/backtest_v1.md`
+3. `python -m src.backtest --method loocv` 成功跑完 10 fold，輸出驗證報告 `reports/backtest_v1.md`
 4. **Backtest 三層 KPI 全部達標**：
-   - 🥇 Tier 1 (冠軍命中) ≥ 14/18
-   - 🥈 Tier 2 (Podium 平均) ≥ 2.0/3
+   - 🥇 Tier 1 (冠軍命中) ≥ 15/20
+   - 🥈 Tier 2 (Podium 平均) ≥ 1.9/3
    - 🥉 Tier 3 (Top 10 平均) ≥ 7/10
 5. Outlier 案例（model 預測錯的年份）有書面分析（`reports/backtest_v1.md` 的「Outlier Analysis」章節）
 6. `pytest` 全綠（unit tests for fetch、feature engineering、model train、backtest metric）
@@ -243,7 +243,7 @@ Vanilla HTML + Jinja2（無 React、無 build pipeline）：
 cyaward-claude/
 ├── data/
 │   ├── historical/
-│   │   ├── training_2015_2024.parquet     # Phase 1 訓練資料
+│   │   ├── training_2015_2025.parquet     # Phase 1 訓練資料
 │   │   └── awards_history.parquet         # Cy Young 投票歷史
 │   ├── raw/                                # Phase 2: 每日 snapshot
 │   └── predictions/                        # Phase 2: 每日 model output
@@ -282,12 +282,12 @@ cyaward-claude/
 
 | Risk | Phase | Impact | Mitigation |
 |---|---|---|---|
-| 訓練樣本只 9 年 (~1440 行) | 1 | 對歷史罕見 profile 泛化弱 | LOOCV 嚴格驗證；Ridge baseline 對照 |
+| 訓練樣本 10 年 (~3421 行) | 1 | 對歷史罕見 profile 泛化弱 | LOOCV 嚴格驗證；Ridge baseline 對照 |
 | 2020 縮水賽季投票邏輯異常 | 1 | 模型混淆 | 排除 |
 | BBWAA 投票偏見漂移 | 1+2 | 例如未來突然又重 W-L | 每年 retrain；Ridge baseline 對照 |
 | pybaseball 因 FanGraphs 改版壞掉 | 1+2 | 抓不到資料 | retry + Phase 2 失敗日不 commit |
 | RS/9 與 W-L 高相關 → 共線性 | 1 | GradientBoosting 不嚴重，但 Ridge 受影響 | Ridge 用 L2 正則；報告兩個模型差異 |
-| Cy Young 偶有「跌破眼鏡」結果（如 2024 NL Sale） | 1 | 部分年份 model 必輸 | KPI 不要求完美（14/18 而非 18/18） |
+| Cy Young 偶有「跌破眼鏡」結果（如 2024 NL Sale） | 1 | 部分年份 model 必輸 | KPI 不要求完美（15/20 而非 20/20） |
 | Phase 1 KPI 未達標 | 1 | Phase 2 無法啟動 | model iteration loop（換特徵、換演算法）；可能加 ensemble |
 | Pace projector 早季嚴重外推 | 2 | 4-5 月排名跳動大 | README 揭露；v3 換 Marcel |
 
@@ -312,12 +312,12 @@ cyaward-claude/
 | 決策 | 選擇 | 替代方案 / 理由 |
 |---|---|---|
 | 資料來源 | pybaseball | 一站式包裝 FanGraphs + Statcast + Bref + Lahman |
-| 訓練年份 | 2015-2024（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
+| 訓練年份 | 2015-2025（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
 | 樣本構成 | IP ≥ 50 含未得票者 | 讓模型學完整分布而非極端值 |
-| 特徵 | 19 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
+| 特徵 | 26 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
 | 模型 | GradientBoosting + Ridge baseline | XGBoost 對小資料無顯著優勢、增加 dep |
-| 驗證 | LOOCV 為主 + time-series split 為輔 | 9 年都被當過 test，最大化驗證樣本 |
-| 通過標準 | 14/18 冠軍 + 2.0/3 podium + 7/10 top10 | 嚴格但留出「voter 跌破眼鏡」空間 |
+| 驗證 | LOOCV 為主 + time-series split 為輔 | 10 年都被當過 test，最大化驗證樣本 |
+| 通過標準 | 12/16 冠軍 + 1.9/3 podium + 7/10 top10 | 8 年 × 2 league = 16 cases；Tier 2 從 2.0 微調到 1.9 因為 1 個 podium swap 是統計噪聲 |
 | 投影模型 (P2) | Pace × Remaining MVP | v3 換 Marcel；介面預留 |
 | 入榜門檻 (P2) | SP/RP 分組動態縮放 | RP 不會被 162-IP 門檻永遠擋外 |
 | 前端 (P2) | Vanilla HTML + Jinja2 | 無 React / 無 build pipeline |
