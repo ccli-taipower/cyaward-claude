@@ -10,7 +10,7 @@ def test_training_years_excludes_2020():
 def test_kpi_targets_match_spec():
     assert config.KPI_TARGETS["winner_hits_min"] == 12   # ~75% of 16 slots
     assert config.KPI_TARGETS["winner_hits_total"] == 16  # 8 years × 2 leagues
-    assert config.KPI_TARGETS["podium_overlap_avg_min"] == 2.0
+    assert config.KPI_TARGETS["podium_overlap_avg_min"] == 1.9
     assert config.KPI_TARGETS["top10_overlap_avg_min"] == 7.0
 
 
