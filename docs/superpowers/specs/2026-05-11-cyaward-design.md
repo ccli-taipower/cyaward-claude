@@ -135,6 +135,8 @@ class MarcelProjector(Projector): ...    # v2，不在本 MVP
 | Statcast | xERA, xwOBA against, Stuff+, Location+, Barrel%, Hard Hit% |
 | Context | role (SP/RP one-hot), league (AL/NL one-hot), team_winning_pct |
 
+註：`team_winning_pct` 在**訓練時**用該年度 final winning pct；**推論時**用今日當下 winning pct。這是必要不對稱（訓練時 final 是已知的）；voter 在 11 月投票時也是看 final，所以邏輯一致。
+
 **模型**：
 - **MVP**: `GradientBoostingRegressor` (sklearn)
 - 同時保留 `Ridge` 作為 baseline / sanity check
@@ -156,13 +158,16 @@ class MarcelProjector(Projector): ...    # v2，不在本 MVP
 
 SP/RP 分組動態縮放：
 ```python
-days_elapsed   = today - season_start         # season_start 約 3/27
+SEASON_START = date(2026, 3, 26)              # 2026 MLB 開幕日
+SEASON_END   = date(2026, 9, 27)              # 規律賽結束日（183 天）
+days_elapsed    = (today - SEASON_START).days
 season_progress = days_elapsed / 183
-sp_min_ip = max(25, 162 × season_progress)
-rp_min_ip = max(10, 60  × season_progress)
+sp_min_ip = max(25, 162 * season_progress)
+rp_min_ip = max(10,  60 * season_progress)
 ```
 - SP 判定: `GS / G > 0.5`
 - RP 判定: `GS / G ≤ 0.5`
+- 季前（`today < SEASON_START`）→ 不出榜，網頁顯示「season hasn't started」
 
 ### 預測管線串接
 
@@ -207,7 +212,7 @@ Vanilla HTML + Jinja2 模板（無 React、無 build pipeline）。
   - 排名 + 名字 + 隊伍
   - 預測 vote share % + 7 日排名變動 (🟢↑ / 🔴↓ / ─)
   - 關鍵 stats: IP, xERA, fWAR
-  - Sparkline（過去 30 天 vote_share 趨勢）— 純 inline SVG，無 lib
+  - Sparkline（過去 30 天 vote_share 趨勢）— 純 inline SVG，無 lib；累積天數不足 30 時就畫實際有的（最少 3 天才顯示，否則隱藏）
 - Footer：方法論、原始碼連結
 
 **渲染**：
