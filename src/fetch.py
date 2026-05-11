@@ -61,3 +61,35 @@ def get_team_records(year: int) -> pd.DataFrame:
         d["year"] = year
         parts.append(d[["Team", "year", "team_winning_pct"]])
     return pd.concat(parts, ignore_index=True)
+
+
+from src.config import MAX_BBWAA_POINTS, LEAGUES
+
+
+def get_awards_history(years: list[int]) -> pd.DataFrame:
+    """Cy Young vote shares across requested years.
+
+    Returns one row per (year, league, player) who received any votes,
+    with computed `vote_share` (= pointsWon / 210) and `was_winner` (0/1).
+    Player names are joined in via the Chadwick register.
+
+    Note: pybaseball's bundled Lahman snapshot may lag the current season
+    by ~6 months. Caller must verify all expected years are present
+    (see Task 5 build_training_data.py's verify step).
+    """
+    raw = pyb.lahman.awards_share_players()
+    cy = raw[raw["awardID"] == "Cy Young Award"].copy()
+    cy = cy[cy["yearID"].isin(years)].copy()
+    cy = cy[cy["lgID"].isin(LEAGUES)].copy()
+
+    cy["vote_share"] = cy["pointsWon"] / MAX_BBWAA_POINTS
+    cy["was_winner"] = (cy["pointsWon"] == cy["pointsMax"]).astype(int)
+
+    chadwick = pyb.chadwick_register()
+    name_map = chadwick[["key_bbref", "name_first", "name_last"]].copy()
+    name_map["pitcher_name"] = name_map["name_first"] + " " + name_map["name_last"]
+    name_map = name_map[["key_bbref", "pitcher_name"]].rename(columns={"key_bbref": "playerID"})
+
+    out = cy.merge(name_map, on="playerID", how="left")
+    out = out.rename(columns={"yearID": "year", "lgID": "league", "awardID": "award"})
+    return out[["year", "league", "playerID", "pitcher_name", "pointsWon", "vote_share", "was_winner", "award"]]

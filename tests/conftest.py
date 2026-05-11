@@ -59,3 +59,26 @@ def fake_standings_df():
         pd.DataFrame({"Tm": ["PIT", "MIL"], "W": [76, 93], "L": [86, 69]}),
         pd.DataFrame({"Tm": ["OAK", "HOU"], "W": [69, 88], "L": [93, 73]}),
     ]
+
+
+@pytest.fixture
+def fake_lahman_awards():
+    return pd.DataFrame({
+        "yearID":     [2024, 2024, 2024, 2024, 2023, 2023],
+        "awardID":    ["Cy Young Award"] * 4 + ["Cy Young Award"] * 2,
+        "lgID":       ["AL", "AL", "NL", "NL", "AL", "NL"],
+        "playerID":   ["skubata01", "ragansh01", "skenepa01", "salech01", "coleger01", "snellbl01"],
+        "pointsWon":  [210, 95, 90, 130, 200, 195],
+        "pointsMax":  [210, 210, 210, 210, 210, 210],
+        "votesFirst": [30, 0, 0, 14, 28, 26],
+    })
+
+
+@pytest.fixture
+def fake_player_id_lookup():
+    """Maps Lahman playerID -> Name for the players in fake_lahman_awards."""
+    return pd.DataFrame({
+        "key_bbref": ["skubata01", "ragansh01", "skenepa01", "salech01", "coleger01", "snellbl01"],
+        "name_first": ["Tarik", "Hunter", "Paul", "Chris", "Gerrit", "Blake"],
+        "name_last":  ["Skubal", "Roberts", "Skenes", "Sale", "Cole", "Snell"],
+    })
