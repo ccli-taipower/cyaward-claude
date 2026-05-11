@@ -98,3 +98,14 @@ def test_run_loocv_produces_one_fold_per_year(synthetic_loocv_input):
     # Calibration df has same length, plus was_winner col
     assert "predicted_vote_share" in oof_calibration.columns
     assert "was_winner" in oof_calibration.columns
+
+
+def test_run_timesplit_returns_predictions_for_test_year(synthetic_loocv_input):
+    pred = backtest.run_timesplit(
+        synthetic_loocv_input,
+        model_factory=voter_model.train_gbr,
+        train_years=[2022, 2023],
+        test_year=2024,
+    )
+    assert (pred["year"] == 2024).all()
+    assert "predicted_vote_share" in pred.columns

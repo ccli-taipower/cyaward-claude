@@ -82,3 +82,17 @@ def run_loocv(
     pred_out = pred_full[["year", "league", "pitcher_name", "predicted_vote_share"]].copy()
     oof_cal = pred_full[["predicted_vote_share", "was_winner"]].copy()
     return pred_out, oof_cal
+
+
+def run_timesplit(
+    training_df: pd.DataFrame,
+    model_factory: Callable[[pd.DataFrame], object],
+    train_years: list[int],
+    test_year: int,
+) -> pd.DataFrame:
+    """Single train/test split."""
+    train = training_df[training_df["year"].isin(train_years)]
+    test = training_df[training_df["year"] == test_year].copy()
+    model = model_factory(train)
+    test["predicted_vote_share"] = voter_model.predict(model, test)
+    return test[["year", "league", "pitcher_name", "predicted_vote_share"]]
