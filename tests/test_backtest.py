@@ -55,3 +55,46 @@ def test_vote_share_mae(sample_predictions_and_truth):
     mae = backtest.vote_share_mae(pred, truth)
     assert mae > 0
     assert mae < 0.5
+
+
+import numpy as np
+from src import voter_model, config
+
+
+@pytest.fixture
+def synthetic_loocv_input():
+    """Build a 3-year synthetic training_df just big enough to LOOCV."""
+    rng = np.random.default_rng(7)
+    rows = []
+    for year in [2022, 2023, 2024]:
+        for league in ["AL", "NL"]:
+            for i in range(20):
+                row = {col: rng.normal(0, 1, 1)[0] for col in config.FEATURE_COLS}
+                row["pitcher_name"] = f"P{year}_{league}_{i}"
+                row["year"] = year
+                row["league"] = league
+                # vote_share strongly driven by fWAR
+                row["vote_share"] = float(np.clip(0.05 * row["fWAR"] + 0.05, 0, 1))
+                row["was_winner"] = 0
+                rows.append(row)
+    df = pd.DataFrame(rows)
+    # tag a winner per (year, league) — highest vote_share
+    for (y, lg), grp in df.groupby(["year", "league"]):
+        idx = grp["vote_share"].idxmax()
+        df.loc[idx, "was_winner"] = 1
+        df.loc[idx, "vote_share"] = max(df.loc[idx, "vote_share"], 0.7)
+    return df
+
+
+def test_run_loocv_produces_one_fold_per_year(synthetic_loocv_input):
+    pred, oof_calibration = backtest.run_loocv(
+        synthetic_loocv_input,
+        model_factory=voter_model.train_gbr,
+        years=[2022, 2023, 2024],
+    )
+    # One row per pitcher across all years
+    assert len(pred) == len(synthetic_loocv_input)
+    assert set(pred["year"].unique()) == {2022, 2023, 2024}
+    # Calibration df has same length, plus was_winner col
+    assert "predicted_vote_share" in oof_calibration.columns
+    assert "was_winner" in oof_calibration.columns
