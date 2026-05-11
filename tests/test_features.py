@@ -72,3 +72,36 @@ def test_build_features_league_one_hot_inferred(joined_inputs):
     assert skubal["league_AL"] == 1
     skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
     assert skenes["league_AL"] == 0
+
+
+def test_build_features_era_zscore_winner_has_positive_value(joined_inputs):
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # Skubal ERA=2.39 (AL), Bad ERA=5.50 (AL) -> mean ~3.94, Skubal z-neg should be POSITIVE
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    # AL has 2 pitchers: Skubal 2.39, Bad 5.50 -> mean ~3.94, Skubal z-neg should be POSITIVE
+    assert skubal["era_z_score_neg"] > 0  # better than mean
+    assert bad["era_z_score_neg"] < 0      # worse than mean
+
+
+def test_build_features_ip_relative_workload(joined_inputs):
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal 192 IP, Bad 158 IP. Max = 192. So Skubal=1.0, Bad ~= 0.823
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    assert skubal["ip_relative_to_max"] == pytest.approx(1.0)
+    assert bad["ip_relative_to_max"] == pytest.approx(158 / 192, abs=0.01)
+
+
+def test_build_features_era_rank_within_league(joined_inputs):
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal 2.39 (rank 1), Bad 5.50 (rank 2). NL: Skenes 1.96 (rank 1, alone).
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    assert skubal["era_rank_in_league"] == 1
+    assert bad["era_rank_in_league"] == 2
+    assert skenes["era_rank_in_league"] == 1

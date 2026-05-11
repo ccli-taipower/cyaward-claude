@@ -93,5 +93,12 @@ def build_features(
         df["pitcher_name"] = df["pitcher_name"].fillna(df["Name"])
     df["year"] = year
 
+    # Compute league-context features (within this year, grouped by league)
+    era_grp = df.groupby("league")["ERA"]
+    df["era_z_score_neg"] = -((df["ERA"] - era_grp.transform("mean")) / era_grp.transform("std"))
+    ip_grp = df.groupby("league")["IP"]
+    df["ip_relative_to_max"] = df["IP"] / ip_grp.transform("max")
+    df["era_rank_in_league"] = era_grp.rank(method="min", ascending=True)
+
     keep = ["pitcher_name", "Team", "league", "year"] + FEATURE_COLS + ["vote_share", "was_winner"]
     return df[keep].reset_index(drop=True)

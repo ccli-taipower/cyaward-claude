@@ -15,8 +15,8 @@ def test_kpi_targets_match_spec():
 
 
 def test_feature_cols_count():
-    # 26 features: 10 traditional + 6 sabermetric + 6 statcast + 4 context
-    assert len(config.FEATURE_COLS) == 26
+    # 29 features: 10 traditional + 6 sabermetric + 6 statcast + 7 context
+    assert len(config.FEATURE_COLS) == 29
 
 
 def test_paths_resolve():

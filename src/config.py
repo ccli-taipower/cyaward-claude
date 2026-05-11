@@ -20,13 +20,14 @@ TRAINING_MIN_IP = 50
 # Vote share denominator: 30 voters × 7 points for first-place
 MAX_BBWAA_POINTS = 210
 
-# Feature columns (26 total: 10 traditional + 6 sabermetric + 6 Statcast + 4 context)
+# Feature columns (29 total: 10 traditional + 6 sabermetric + 6 Statcast + 7 context)
 TRADITIONAL_COLS = ["W", "L", "ERA", "IP", "K", "BB", "WHIP", "CG", "ShO", "SV"]
 SABERMETRIC_COLS = ["fWAR", "FIP", "xFIP", "K-BB%", "ERA-", "FIP-"]
 STATCAST_COLS = ["xERA", "xwOBA_against", "Stuff+", "Location+", "Barrel%", "HardHit%"]
-CONTEXT_COLS = ["role_SP", "league_AL", "team_winning_pct", "RS_per_9"]
+CONTEXT_COLS = ["role_SP", "league_AL", "team_winning_pct", "RS_per_9",
+                "era_z_score_neg", "ip_relative_to_max", "era_rank_in_league"]
 FEATURE_COLS = TRADITIONAL_COLS + SABERMETRIC_COLS + STATCAST_COLS + CONTEXT_COLS
-assert len(FEATURE_COLS) == 26  # 10 traditional + 6 sabermetric + 6 statcast + 4 context
+assert len(FEATURE_COLS) == 29  # was 26
 
 # Paths
 AWARDS_PARQUET = HISTORICAL_DIR / "awards_history.parquet"
