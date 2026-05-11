@@ -3,7 +3,7 @@
 MLB Cy Young Award voter-share regression model.
 
 **Phase 1 (COMPLETE):** model trained and backtested on 2015–2025 BBWAA voting (10 years × 2 leagues = 20 winner slots).  
-**Phase 2 (DEFERRED):** live 2026 dashboard not built; see [design spec](docs/superpowers/specs/2026-05-11-cyaward-design.md).
+**Phase 2 (COMPLETE):** live 2026 dashboard + weekly markdown report; daily/weekly GitHub Actions cron committed. Deployment to GitHub Pages pending repo push.
 
 ---
 

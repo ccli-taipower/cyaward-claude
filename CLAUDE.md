@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Phase 1 COMPLETE** (tag `phase1-complete`) — voter-share regression model trained and backtested on 2015–2025 BBWAA Cy Young voting (10 years × 2 leagues = 20 winner slots), all 3 KPI tiers PASS (15/20 winners, 1.95/3 podium avg, 8.20/10 top-10 avg, MAE 0.0076).
 
-**Phase 2 DEFERRED** — live 2026 dashboard not yet built; design is in [`docs/superpowers/specs/2026-05-11-cyaward-design.md`](docs/superpowers/specs/2026-05-11-cyaward-design.md) section 2.
+**Phase 2 COMPLETE** (tag `phase2-complete`) — live 2026 dashboard at `site/index.html` + weekly report at `reports/2026-Wxx.md`. Daily GitHub Actions cron (`0 11 * * *` UTC) runs `python -m src.cli.daily`; weekly cron (`0 2 * * 1` UTC) runs `python -m src.cli.weekly`. Plan: [`docs/superpowers/plans/2026-05-12-cyaward-phase2.md`](docs/superpowers/plans/2026-05-12-cyaward-phase2.md). Deployment to GitHub Pages requires repo push + Actions enablement.
 
 ## Common commands
 
