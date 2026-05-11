@@ -261,21 +261,30 @@ def _load_awards_share_players() -> pd.DataFrame:
 
     pybaseball.lahman is broken (its hardcoded source repo was deleted).
     We use jmaslek/LahmanDatabase mirror as a workaround.
-    Data covers through 2023; 2024 is not yet available in this mirror.
+    Data covers through 2023; 2024 and 2025 are appended from BBWAA-scraped
+    supplemental file (data/historical/awards_2024_2025.csv).
     """
     cache_path = HISTORICAL_DIR / "AwardsSharePlayers.csv"
-    if cache_path.exists():
-        return pd.read_csv(cache_path)
+    if not cache_path.exists():
+        print("Downloading Lahman AwardsSharePlayers from mirror ...")
+        resp = requests.get(LAHMAN_MIRROR_URL, stream=True, timeout=60)
+        resp.raise_for_status()
+        with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+            with zf.open(LAHMAN_ZIP_CSV_PATH) as f:
+                df = pd.read_csv(f)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(cache_path, index=False)
+        print(f"  cached -> {cache_path}")
+    else:
+        df = pd.read_csv(cache_path)
 
-    print("Downloading Lahman AwardsSharePlayers from mirror ...")
-    resp = requests.get(LAHMAN_MIRROR_URL, stream=True, timeout=60)
-    resp.raise_for_status()
-    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
-        with zf.open(LAHMAN_ZIP_CSV_PATH) as f:
-            df = pd.read_csv(f)
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(cache_path, index=False)
-    print(f"  cached -> {cache_path}")
+    # Append BBWAA-scraped 2024 + 2025 supplemental data
+    supplemental_path = HISTORICAL_DIR / "awards_2024_2025.csv"
+    if supplemental_path.exists():
+        supp = pd.read_csv(supplemental_path)
+        df = pd.concat([df, supp], ignore_index=True)
+        print(f"  appended {len(supp)} rows from {supplemental_path.name}")
+
     return df
 
 

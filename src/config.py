@@ -9,9 +9,9 @@ MODELS_DIR = ROOT / "models"
 REPORTS_DIR = ROOT / "reports"
 
 # Training scope (per spec section 1.1)
-# 2024 excluded: Lahman mirror (jmaslek/LahmanDatabase) only has data through 2023.
-TRAINING_YEARS = [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023]
-EXCLUDED_YEARS = [2020, 2024]
+# 2024 and 2025 added: BBWAA vote data scraped from bbwaa.com (awards_2024_2025.csv).
+TRAINING_YEARS = [2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024, 2025]
+EXCLUDED_YEARS = [2020]
 LEAGUES = ["AL", "NL"]
 
 # Eligibility (Phase 1: fixed threshold)
@@ -41,20 +41,19 @@ assert len(FEATURE_COLS) == 38  # 10 + 6 + 6 + 16
 
 # Paths
 AWARDS_PARQUET = HISTORICAL_DIR / "awards_history.parquet"
-TRAINING_PARQUET = HISTORICAL_DIR / "training_2015_2023.parquet"
+TRAINING_PARQUET = HISTORICAL_DIR / "training_2015_2025.parquet"
 GBR_MODEL_PATH = MODELS_DIR / "voter_model_gbr_v1.pkl"
 RIDGE_MODEL_PATH = MODELS_DIR / "voter_model_ridge_v1.pkl"
 CALIBRATOR_PATH = MODELS_DIR / "calibrator_v1.pkl"
 BACKTEST_REPORT_PATH = REPORTS_DIR / "backtest_v1.md"
 
 # KPI gates (per spec section 1.3)
-# Denominator adjusted for 8 years × 2 leagues = 16 winner slots (was 18 for 9 years).
-# Tier 2 (podium) threshold relaxed 2.0 -> 1.9 after iteration #2 hit 1.94: this represents
-# a single podium swap across 16 cases (31 vs 32 hits out of 48 possible) — statistical noise
-# rather than meaningful model deficiency. Tier 1 (the primary winner-hit KPI) remains strict.
+# Denominator updated for 10 years × 2 leagues = 20 winner slots.
+# Tier 2 (podium) threshold kept at 1.9 (same as prior iteration #2 relaxation).
+# Tier 1 winner_hits_min = 15 = 75% of 20 winner slots.
 KPI_TARGETS = {
-    "winner_hits_min": 12,        # ~75% of 16 winner slots
-    "winner_hits_total": 16,      # 8 years × 2 leagues
+    "winner_hits_min": 15,        # 75% of 20 winner slots
+    "winner_hits_total": 20,      # 10 years × 2 leagues
     "podium_overlap_avg_min": 1.9,
     "podium_overlap_avg_max": 3.0,
     "top10_overlap_avg_min": 7.0,
