@@ -44,3 +44,22 @@ def test_predict_clips_to_unit_interval(synthetic_training_set):
     preds = voter_model.predict(pipe, X)
     assert (preds >= 0).all()
     assert (preds <= 1).all()
+
+
+def test_train_calibrator_returns_isotonic():
+    rng = np.random.default_rng(0)
+    predicted_share = rng.uniform(0, 1, 100)
+    # synthetic: high predicted share -> more likely winner
+    was_winner = (predicted_share > 0.7).astype(int)
+    cal = voter_model.train_calibrator(predicted_share, was_winner)
+    # high share input -> high probability output
+    assert cal.predict([0.9])[0] > cal.predict([0.1])[0]
+
+
+def test_calibrator_output_in_unit_interval():
+    rng = np.random.default_rng(0)
+    pred = rng.uniform(0, 1, 50)
+    won = (pred > 0.6).astype(int)
+    cal = voter_model.train_calibrator(pred, won)
+    out = cal.predict([0.0, 0.3, 0.5, 0.8, 1.0])
+    assert (out >= 0).all() and (out <= 1).all()

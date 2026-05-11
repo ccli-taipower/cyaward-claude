@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sklearn.impute import SimpleImputer
+from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
@@ -56,3 +57,10 @@ def save_model(model: Pipeline, path: Path | str) -> None:
 
 def load_model(path: Path | str) -> Pipeline:
     return joblib.load(path)
+
+
+def train_calibrator(predicted_share: np.ndarray, was_winner: np.ndarray) -> IsotonicRegression:
+    """Map predicted vote_share -> P(was_winner). Monotonic non-decreasing."""
+    cal = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+    cal.fit(predicted_share, was_winner)
+    return cal
