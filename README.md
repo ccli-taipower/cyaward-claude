@@ -71,6 +71,57 @@ The pipeline has five layers:
 
 ---
 
+## Phase 2 — Live Dashboard
+
+**Status:** Implemented; deployment to GitHub Pages pending repo push.
+
+The Phase 2 pipeline applies the validated Phase 1 GBR model to live 2026 stats and produces:
+
+- **Daily HTML dashboard** at `site/index.html` (intended for GitHub Pages) with AL+NL Top 10.
+- **Weekly markdown report** at `reports/2026-Wxx.md` (every Monday) with rank movers and Top 10 snapshot.
+
+### Local run
+
+```bash
+# Run today's ranking + render the HTML
+python -m src.cli.daily                       # uses today's date
+python -m src.cli.daily --date 2026-05-12     # backfill a specific date
+open site/index.html                          # macOS preview
+
+# Generate this week's report (after at least 1 daily run has produced a parquet)
+python -m src.cli.weekly --week-end 2026-05-17
+```
+
+### Automation
+
+Two GitHub Actions workflows are committed but require pushing to a GitHub remote + manual enablement of Actions to start firing:
+
+- `.github/workflows/daily.yml` — `cron: "0 11 * * *"` (19:00 Taiwan time). Runs the daily pipeline; commits the new parquet + updated `site/index.html`.
+- `.github/workflows/weekly.yml` — `cron: "0 2 * * 1"` (Monday 10:00 Taiwan time). Generates the weekly report.
+
+Failure handling: each daily run retries up to 3 times with exponential backoff; if all retries fail, **no commit is made** (the previous day's `site/index.html` stays live).
+
+### Architecture additions
+
+| Module | Role |
+|---|---|
+| `src/eligibility.py` | Dynamic SP/RP IP threshold scaled by season progress |
+| `src/projector.py` | `PaceProjector`: scales counting stats to full-season equivalents |
+| `src/ranker.py` | Orchestrator: fetch → eligibility → project → features → predict → rank |
+| `src/render.py` | Jinja2 renderer (`templates/dashboard.html.j2` → `site/index.html`) |
+| `src/weekly_report.py` | Aggregates 7 daily parquets into a markdown report |
+| `src/cli/daily.py` | Daily pipeline CLI |
+| `src/cli/weekly.py` | Weekly pipeline CLI |
+
+### Known limitations (Phase 2)
+
+- **Pace projector is naive**: linear `IP_full = IP_current / season_progress`. Early-season predictions for breakout/injury cases will swing wildly. A Marcel-style regression-to-mean projector is reserved for v3.
+- **No sparkline yet**: the spec calls for per-pitcher 30-day vote-share trend lines; the parquet history accumulates day-by-day so this is straightforward to add as a follow-up.
+- **2024-2025 awards are scraped manually** from `bbwaa.com`; 2026 will need the same treatment after the November vote.
+- **Caching**: `fg_pitching_2026.csv` and `standings_2026.csv` are git-ignored (regenerated daily); historical-year caches stay committed for reproducibility.
+
+---
+
 ## Feature Set
 
 The model uses **38 features** across 4 categories:
