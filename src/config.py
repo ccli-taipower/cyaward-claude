@@ -20,14 +20,24 @@ TRAINING_MIN_IP = 50
 # Vote share denominator: 30 voters × 7 points for first-place
 MAX_BBWAA_POINTS = 210
 
-# Feature columns (29 total: 10 traditional + 6 sabermetric + 6 Statcast + 7 context)
+# Feature columns (38 total: 10 traditional + 6 sabermetric + 6 Statcast + 16 context)
+# Iteration #2 adds: qualified_for_era_title, ip_rank_in_league, wins_rank_in_league,
+#                    late_era_z_score_neg, late_vs_full_era_delta (filled to 0 — no monthly data),
+#                    k_per_9 (strikeout rate narrative), fWAR_z_score (league-normed fWAR),
+#                    FIP_rank_in_league, fWAR_rank_in_league (rank-based analogues)
 TRADITIONAL_COLS = ["W", "L", "ERA", "IP", "K", "BB", "WHIP", "CG", "ShO", "SV"]
 SABERMETRIC_COLS = ["fWAR", "FIP", "xFIP", "K-BB%", "ERA-", "FIP-"]
 STATCAST_COLS = ["xERA", "xwOBA_against", "Stuff+", "Location+", "Barrel%", "HardHit%"]
-CONTEXT_COLS = ["role_SP", "league_AL", "team_winning_pct", "RS_per_9",
-                "era_z_score_neg", "ip_relative_to_max", "era_rank_in_league"]
+CONTEXT_COLS = [
+    "role_SP", "league_AL", "team_winning_pct", "RS_per_9",
+    "era_z_score_neg", "ip_relative_to_max", "era_rank_in_league",  # iteration #1
+    "qualified_for_era_title", "ip_rank_in_league", "wins_rank_in_league",  # iteration #2: workload + wins
+    "late_era_z_score_neg", "late_vs_full_era_delta",               # iteration #2: late-season (0-filled)
+    "k_per_9", "fWAR_z_score",                                      # iteration #2: rate + WAR norm
+    "FIP_rank_in_league", "fWAR_rank_in_league",                    # iteration #2: rank analogues
+]
 FEATURE_COLS = TRADITIONAL_COLS + SABERMETRIC_COLS + STATCAST_COLS + CONTEXT_COLS
-assert len(FEATURE_COLS) == 29  # was 26
+assert len(FEATURE_COLS) == 38  # 10 + 6 + 6 + 16
 
 # Paths
 AWARDS_PARQUET = HISTORICAL_DIR / "awards_history.parquet"

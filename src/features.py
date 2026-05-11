@@ -36,6 +36,7 @@ def build_features(
     bref: pd.DataFrame,
     standings: pd.DataFrame,
     awards: pd.DataFrame,
+    fg_late_season: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Join raw frames into one training-row-per-pitcher DataFrame.
 
@@ -47,11 +48,14 @@ def build_features(
 
     Parameters
     ----------
-    year:      Season year being processed.
-    fg:        FanGraphs pitching stats (canonical column names already applied).
-    bref:      Baseball-Reference pitching stats (reserved for v2; unused in MVP).
-    standings: Pre-computed standings with columns [Team, team_winning_pct].
-    awards:    Awards history with columns [year, pitcher_name, vote_share, was_winner].
+    year:           Season year being processed.
+    fg:             FanGraphs pitching stats (canonical column names already applied).
+    bref:           Baseball-Reference pitching stats (reserved for v2; unused in MVP).
+    standings:      Pre-computed standings with columns [Team, team_winning_pct].
+    awards:         Awards history with columns [year, pitcher_name, vote_share, was_winner].
+    fg_late_season: Optional late-season (Aug+Sep) FanGraphs data.  When provided,
+                    enables late_era_z_score_neg and late_vs_full_era_delta features.
+                    When None or empty, those features are filled with 0.0.
 
     Returns
     -------
@@ -99,6 +103,45 @@ def build_features(
     ip_grp = df.groupby("league")["IP"]
     df["ip_relative_to_max"] = df["IP"] / ip_grp.transform("max")
     df["era_rank_in_league"] = era_grp.rank(method="min", ascending=True)
+
+    # Iteration #2: workload features
+    # Hard threshold: ERA title requires 162 IP (1 IP per scheduled game)
+    df["qualified_for_era_title"] = (df["IP"] >= 162).astype(int)
+    # IP rank within league (1 = most innings; workhorse signal)
+    df["ip_rank_in_league"] = ip_grp.rank(method="min", ascending=False)
+    # Wins rank within league (1 = most wins; captures narrative like Porcello 2016)
+    df["wins_rank_in_league"] = df.groupby("league")["W"].rank(method="min", ascending=False)
+
+    # Iteration #2: late-season features
+    # FanGraphs monthly split API is Cloudflare-blocked (returns 403).
+    # When fg_late_season is provided (future: alternative source), compute real values.
+    # For now, fill with 0.0 so the feature exists and the model can learn around it.
+    if fg_late_season is not None and len(fg_late_season) > 0:
+        late = fg_late_season[["Name", "ERA", "IP"]].rename(
+            columns={"ERA": "late_ERA", "IP": "late_IP"}
+        )
+        df = df.merge(late, on="Name", how="left")
+        late_grp = df.groupby("league")["late_ERA"]
+        df["late_era_z_score_neg"] = -(
+            (df["late_ERA"] - late_grp.transform("mean")) / late_grp.transform("std")
+        )
+        df["late_vs_full_era_delta"] = df["late_ERA"] - df["ERA"]
+    else:
+        df["late_era_z_score_neg"] = 0.0
+        df["late_vs_full_era_delta"] = 0.0
+
+    # Iteration #2: rate and normalized WAR features
+    # K/9 as a rate stat (strikeout narrative — e.g. Burnes 2021 historic K rate)
+    df["k_per_9"] = df["K"] / df["IP"] * 9
+    # fWAR z-score within league: normalizes fWAR so that a high fWAR in a weak
+    # league year is discounted vs. a dominant fWAR season.
+    fwar_grp = df.groupby("league")["fWAR"]
+    df["fWAR_z_score"] = (df["fWAR"] - fwar_grp.transform("mean")) / fwar_grp.transform("std")
+    # Rank-based analogues for FIP and fWAR to give the model ordinal signals.
+    # FIP rank (1 = best FIP in league; captures ace-level dominance like Burnes 2021)
+    df["FIP_rank_in_league"] = df.groupby("league")["FIP"].rank(method="min", ascending=True)
+    # fWAR rank (1 = highest fWAR in league)
+    df["fWAR_rank_in_league"] = fwar_grp.rank(method="min", ascending=False)
 
     keep = ["pitcher_name", "Team", "league", "year"] + FEATURE_COLS + ["vote_share", "was_winner"]
     return df[keep].reset_index(drop=True)

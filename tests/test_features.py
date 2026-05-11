@@ -105,3 +105,97 @@ def test_build_features_era_rank_within_league(joined_inputs):
     assert skubal["era_rank_in_league"] == 1
     assert bad["era_rank_in_league"] == 2
     assert skenes["era_rank_in_league"] == 1
+
+
+def test_build_features_qualified_for_era_title(joined_inputs):
+    """Pitchers with >= 162 IP get qualified_for_era_title=1; others get 0."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # Skubal 192 IP >= 162 -> 1; Skenes 133 IP < 162 -> 0; Bad 158 IP < 162 -> 0
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    assert skubal["qualified_for_era_title"] == 1
+    assert skenes["qualified_for_era_title"] == 0
+    assert bad["qualified_for_era_title"] == 0
+
+
+def test_build_features_ip_rank_in_league(joined_inputs):
+    """ip_rank_in_league=1 means most IP in that league."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal 192 (rank 1), Bad 158 (rank 2). NL: Skenes 133 (rank 1, alone).
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    assert skubal["ip_rank_in_league"] == 1
+    assert bad["ip_rank_in_league"] == 2
+    assert skenes["ip_rank_in_league"] == 1
+
+
+def test_build_features_wins_rank_in_league(joined_inputs):
+    """wins_rank_in_league=1 means most wins in that league."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal 18W (rank 1), Bad 4W (rank 2). NL: Skenes 11W (rank 1, alone).
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    assert skubal["wins_rank_in_league"] == 1
+    assert bad["wins_rank_in_league"] == 2
+    assert skenes["wins_rank_in_league"] == 1
+
+
+def test_build_features_late_season_defaults_to_zero(joined_inputs):
+    """When fg_late_season is None, late-season features are filled with 0."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards, fg_late_season=None)
+    assert (out["late_era_z_score_neg"] == 0.0).all()
+    assert (out["late_vs_full_era_delta"] == 0.0).all()
+
+
+def test_build_features_k_per_9(joined_inputs):
+    """k_per_9 = K / IP * 9."""
+    import pytest
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    # 228 K / 192 IP * 9 = 10.6875
+    assert skubal["k_per_9"] == pytest.approx(228 / 192 * 9, abs=0.01)
+
+
+def test_build_features_fwar_z_score(joined_inputs):
+    """fWAR_z_score: higher-fWAR pitcher within same league should have positive z-score."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal fWAR=5.5, Bad fWAR=0.5 -> Skubal should have positive z-score
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    assert skubal["fWAR_z_score"] > 0
+    assert bad["fWAR_z_score"] < 0
+
+
+def test_build_features_fip_rank_in_league(joined_inputs):
+    """FIP_rank_in_league=1 means best (lowest) FIP in that league."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal FIP=2.49 (rank 1), Bad FIP=4.80 (rank 2). NL: Skenes FIP=2.44 (rank 1, alone).
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    assert skubal["FIP_rank_in_league"] == 1
+    assert bad["FIP_rank_in_league"] == 2
+    assert skenes["FIP_rank_in_league"] == 1
+
+
+def test_build_features_fwar_rank_in_league(joined_inputs):
+    """fWAR_rank_in_league=1 means highest fWAR in that league."""
+    fg, bref, standings, awards = joined_inputs
+    out = features.build_features(2024, fg, bref, standings, awards)
+    # AL: Skubal fWAR=5.5 (rank 1), Bad fWAR=0.5 (rank 2). NL: Skenes fWAR=4.3 (rank 1, alone).
+    skubal = out[out["pitcher_name"] == "Tarik Skubal"].iloc[0]
+    bad = out[out["pitcher_name"] == "Bad Pitcher"].iloc[0]
+    skenes = out[out["pitcher_name"] == "Paul Skenes"].iloc[0]
+    assert skubal["fWAR_rank_in_league"] == 1
+    assert bad["fWAR_rank_in_league"] == 2
+    assert skenes["fWAR_rank_in_league"] == 1
