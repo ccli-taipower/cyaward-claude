@@ -37,7 +37,7 @@ def test_get_team_records_returns_winning_pct(fake_standings_df):
 
 
 def test_get_awards_history_filters_cy_young_only(fake_lahman_awards, fake_player_id_lookup):
-    with patch("src.fetch.pyb.lahman.awards_share_players", return_value=fake_lahman_awards), \
+    with patch("src.fetch._load_awards_share_players", return_value=fake_lahman_awards), \
          patch("src.fetch.pyb.chadwick_register", return_value=fake_player_id_lookup):
         out = fetch.get_awards_history([2023, 2024])
     assert (out["award"] == "Cy Young Award").all()
@@ -45,7 +45,7 @@ def test_get_awards_history_filters_cy_young_only(fake_lahman_awards, fake_playe
 
 
 def test_awards_vote_share_normalized(fake_lahman_awards, fake_player_id_lookup):
-    with patch("src.fetch.pyb.lahman.awards_share_players", return_value=fake_lahman_awards), \
+    with patch("src.fetch._load_awards_share_players", return_value=fake_lahman_awards), \
          patch("src.fetch.pyb.chadwick_register", return_value=fake_player_id_lookup):
         out = fetch.get_awards_history([2023, 2024])
     skubal = out[out["playerID"] == "skubata01"].iloc[0]
@@ -60,7 +60,7 @@ def test_awards_vote_share_normalized(fake_lahman_awards, fake_player_id_lookup)
 
 def test_awards_handles_missing_year_gracefully(fake_lahman_awards, fake_player_id_lookup):
     # Request 2024 only — should return only 2024 rows
-    with patch("src.fetch.pyb.lahman.awards_share_players", return_value=fake_lahman_awards), \
+    with patch("src.fetch._load_awards_share_players", return_value=fake_lahman_awards), \
          patch("src.fetch.pyb.chadwick_register", return_value=fake_player_id_lookup):
         out = fetch.get_awards_history([2024])
     assert (out["year"] == 2024).all()

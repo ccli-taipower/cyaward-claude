@@ -7,10 +7,19 @@ pybaseball naming quirks.
 """
 from __future__ import annotations
 
+import io
+import zipfile
+
 import pandas as pd
 import pybaseball as pyb
+import requests
 
-from src.config import MAX_BBWAA_POINTS, LEAGUES
+from src.config import MAX_BBWAA_POINTS, LEAGUES, HISTORICAL_DIR
+
+# pybaseball.lahman is broken (its hardcoded source repo was deleted).
+# We use jmaslek/LahmanDatabase mirror as a workaround.
+LAHMAN_MIRROR_URL = "https://github.com/jmaslek/LahmanDatabase/archive/refs/heads/main.zip"
+LAHMAN_ZIP_CSV_PATH = "LahmanDatabase-main/unzipped/AwardsSharePlayers.csv"
 
 pyb.cache.enable()  # use ~/.pybaseball cache
 
@@ -65,6 +74,29 @@ def get_team_records(year: int) -> pd.DataFrame:
     return pd.concat(parts, ignore_index=True)
 
 
+def _load_awards_share_players() -> pd.DataFrame:
+    """Load AwardsSharePlayers from local cache; download from mirror if missing.
+
+    pybaseball.lahman is broken (its hardcoded source repo was deleted).
+    We use jmaslek/LahmanDatabase mirror as a workaround.
+    Data covers through 2023; 2024 is not yet available in this mirror.
+    """
+    cache_path = HISTORICAL_DIR / "AwardsSharePlayers.csv"
+    if cache_path.exists():
+        return pd.read_csv(cache_path)
+
+    print("Downloading Lahman AwardsSharePlayers from mirror ...")
+    resp = requests.get(LAHMAN_MIRROR_URL, stream=True, timeout=60)
+    resp.raise_for_status()
+    with zipfile.ZipFile(io.BytesIO(resp.content)) as zf:
+        with zf.open(LAHMAN_ZIP_CSV_PATH) as f:
+            df = pd.read_csv(f)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(cache_path, index=False)
+    print(f"  cached -> {cache_path}")
+    return df
+
+
 def get_awards_history(years: list[int]) -> pd.DataFrame:
     """Cy Young vote shares across requested years.
 
@@ -76,7 +108,7 @@ def get_awards_history(years: list[int]) -> pd.DataFrame:
     by ~6 months. Caller must verify all expected years are present
     (see Task 5 build_training_data.py's verify step).
     """
-    raw = pyb.lahman.awards_share_players()
+    raw = _load_awards_share_players()
     cy = raw[raw["awardID"] == "Cy Young Award"].copy()
     cy = cy[cy["yearID"].isin(years)].copy()
     cy = cy[cy["lgID"].isin(LEAGUES)].copy()
