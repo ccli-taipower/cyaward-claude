@@ -294,7 +294,12 @@ def get_awards_history(years: list[int]) -> pd.DataFrame:
     cy = cy[cy["lgID"].isin(LEAGUES)].copy()
 
     cy["vote_share"] = cy["pointsWon"] / MAX_BBWAA_POINTS
-    cy["was_winner"] = (cy["pointsWon"] == cy["pointsMax"]).astype(int)
+    # was_winner: the player with the most pointsWon in each (year, league) group.
+    # NOTE: pointsMax in Lahman is the theoretical maximum (always 210), NOT
+    # the winner's actual points.  Using max() within group is the correct method.
+    cy["max_points"] = cy.groupby(["yearID", "lgID"])["pointsWon"].transform("max")
+    cy["was_winner"] = (cy["pointsWon"] == cy["max_points"]).astype(int)
+    cy = cy.drop(columns=["max_points"])
 
     chadwick = pyb.chadwick_register()
     name_map = chadwick[["key_bbref", "name_first", "name_last"]].copy()

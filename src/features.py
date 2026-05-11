@@ -5,6 +5,8 @@ Pure functions (no I/O) — all inputs are DataFrames, output is DataFrame.
 """
 from __future__ import annotations
 
+import unicodedata
+
 import pandas as pd
 
 from src.config import FEATURE_COLS, TRAINING_MIN_IP
@@ -17,6 +19,15 @@ AL_TEAMS = {"BAL", "BOS", "NYY", "TBR", "TOR",
 
 def _infer_league(team: str) -> str:
     return "AL" if team in AL_TEAMS else "NL"
+
+
+def _normalize_name(name: str) -> str:
+    """Strip accents / diacritics for fuzzy name matching.
+
+    'Sandy Alcántara' -> 'Sandy Alcantara'
+    """
+    nfkd = unicodedata.normalize("NFKD", str(name))
+    return "".join(c for c in nfkd if not unicodedata.combining(c))
 
 
 def build_features(
@@ -61,12 +72,19 @@ def build_features(
     df = df.merge(standings[["Team", "team_winning_pct"]], on="Team", how="left")
 
     # Awards label (left-join; unmatched = 0)
-    awards_slim = awards[awards["year"] == year][["pitcher_name", "vote_share", "was_winner"]]
+    # Normalize names to ASCII to handle accented characters (e.g. "Alcántara" -> "Alcantara")
+    awards_slim = awards[awards["year"] == year][["pitcher_name", "vote_share", "was_winner"]].copy()
+    awards_slim["pitcher_name_norm"] = awards_slim["pitcher_name"].map(_normalize_name)
+    df["Name_norm"] = df["Name"].map(_normalize_name)
     df = df.merge(
-        awards_slim,
-        left_on="Name", right_on="pitcher_name",
+        awards_slim.drop(columns=["pitcher_name"]),
+        left_on="Name_norm", right_on="pitcher_name_norm",
         how="left",
     )
+    df = df.drop(columns=["Name_norm", "pitcher_name_norm"], errors="ignore")
+    # Restore pitcher_name for display
+    awards_name_map = awards_slim.set_index("pitcher_name_norm")["pitcher_name"]
+    df["pitcher_name"] = df["Name"].map(_normalize_name).map(awards_name_map)
     df["vote_share"] = df["vote_share"].fillna(0.0)
     df["was_winner"] = df["was_winner"].fillna(0).astype(int)
 
