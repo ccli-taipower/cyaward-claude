@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLB Cy Young Tracker — {{ asof_date }}</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <h1>MLB Cy Young Tracker</h1>
+        <p class="subtitle">Predicted BBWAA vote shares as of <strong>{{ asof_date }}</strong></p>
+        <p class="meta">Updated {{ generated_at }} · {{ total_eligible }} eligible pitchers</p>
+    </header>
+
+    <main>
+        <section class="league" id="al">
+            <h2>American League — Top 10</h2>
+            <ol class="rankings">
+                {% for p in al_top10 %}
+                <li class="card">
+                    <div class="card-header">
+                        <span class="rank">#{{ p.predicted_rank_in_league }}</span>
+                        <span class="name">{{ p.pitcher_name }}</span>
+                        <span class="team">{{ p.Team }}</span>
+                    </div>
+                    <div class="share">{{ "%.1f" | format(p.predicted_vote_share * 100) }}%</div>
+                    <div class="stats">
+                        <span title="Current IP">IP {{ "%.1f" | format(p.current_IP) }}</span>
+                        <span title="Current ERA">ERA {{ "%.2f" | format(p.current_ERA) }}</span>
+                        <span title="Current fWAR">fWAR {{ "%.1f" | format(p.current_fWAR) }}</span>
+                    </div>
+                    <div class="stats projected">
+                        <span title="Projected IP">→ IP {{ "%.0f" | format(p.proj_IP) }}</span>
+                        <span title="Projected fWAR">fWAR {{ "%.1f" | format(p.proj_fWAR) }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+
+        <section class="league" id="nl">
+            <h2>National League — Top 10</h2>
+            <ol class="rankings">
+                {% for p in nl_top10 %}
+                <li class="card">
+                    <div class="card-header">
+                        <span class="rank">#{{ p.predicted_rank_in_league }}</span>
+                        <span class="name">{{ p.pitcher_name }}</span>
+                        <span class="team">{{ p.Team }}</span>
+                    </div>
+                    <div class="share">{{ "%.1f" | format(p.predicted_vote_share * 100) }}%</div>
+                    <div class="stats">
+                        <span title="Current IP">IP {{ "%.1f" | format(p.current_IP) }}</span>
+                        <span title="Current ERA">ERA {{ "%.2f" | format(p.current_ERA) }}</span>
+                        <span title="Current fWAR">fWAR {{ "%.1f" | format(p.current_fWAR) }}</span>
+                    </div>
+                    <div class="stats projected">
+                        <span title="Projected IP">→ IP {{ "%.0f" | format(p.proj_IP) }}</span>
+                        <span title="Projected fWAR">fWAR {{ "%.1f" | format(p.proj_fWAR) }}</span>
+                    </div>
+                </li>
+                {% endfor %}
+            </ol>
+        </section>
+    </main>
+
+    <footer>
+        <p>Model: Phase 1 GBR (trained on 2015-2025 BBWAA voting · MAE 0.0076 LOOCV).
+           Source: <a href="https://github.com/ccli-taipower/cyaward-claude">github.com/ccli-taipower/cyaward-claude</a>.</p>
+    </footer>
+</body>
+</html>
