@@ -84,9 +84,9 @@
 
 | Tier | 指標 | **MVP 通過標準** |
 |---|---|---|
-| 🥇 Tier 1：冠軍命中 | `predicted_top1 == actual_top1` 命中次數 / 18 | **≥ 14 / 18 (78%)** |
-| 🥈 Tier 2：Podium 還原 | 18 次中，predicted Top 3 與 actual Top 3 集合重疊數的平均（不論順序） | **≥ 1.9 / 3 (63%)** |
-| 🥉 Tier 3：Top 10 還原 | 18 次中，predicted Top 10 與 actual Top 10 集合重疊數的平均 | **≥ 7 / 10 (70%)** |
+| 🥇 Tier 1：冠軍命中 | `predicted_top1 == actual_top1` 命中次數 / 20 | **≥ 15 / 20 (75%)** |
+| 🥈 Tier 2：Podium 還原 | 20 次中，predicted Top 3 與 actual Top 3 集合重疊數的平均（不論順序） | **≥ 1.9 / 3 (63%)** |
+| 🥉 Tier 3：Top 10 還原 | 20 次中，predicted Top 10 與 actual Top 10 集合重疊數的平均 | **≥ 7 / 10 (70%)** |
 
 **輔助指標**（不是通過標準，但要報告）：
 - Vote share MAE
@@ -97,7 +97,7 @@
 ### 1.4 驗證方法（雙軌）
 
 **主軌：Leave-One-Year-Out CV**
-- 9 個 fold；每個 fold 留一年當 test，用其他 8 年訓練
+- 10 個 fold；每個 fold 留一年當 test，用其他 9 年訓練
 - 收集 10 年的預測，串成 10 年 × 2 聯盟 = 20 個 (year, league) cases，計算上述三層 KPI
 - **這是判定 Phase 1 是否通過的主要依據**
 
@@ -117,7 +117,7 @@
 
 1. `data/historical/training_2015_2025.parquet` 成功生成（≥ 3000 rows，含所有特徵且無 critical NaN）
 2. `python -m src.train` 成功訓練 GradientBoosting + Ridge + calibrator，輸出三個 pkl
-3. `python -m src.backtest --method loocv` 成功跑完 9 fold，輸出驗證報告 `reports/backtest_v1.md`
+3. `python -m src.backtest --method loocv` 成功跑完 10 fold，輸出驗證報告 `reports/backtest_v1.md`
 4. **Backtest 三層 KPI 全部達標**：
    - 🥇 Tier 1 (冠軍命中) ≥ 15/20
    - 🥈 Tier 2 (Podium 平均) ≥ 1.9/3
@@ -312,7 +312,7 @@ cyaward-claude/
 | 決策 | 選擇 | 替代方案 / 理由 |
 |---|---|---|
 | 資料來源 | pybaseball | 一站式包裝 FanGraphs + Statcast + Bref + Lahman |
-| 訓練年份 | 2015-2024（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
+| 訓練年份 | 2015-2025（除 2020）| Statcast 從 2015；BBWAA 邏輯近年才轉向 sabermetric |
 | 樣本構成 | IP ≥ 50 含未得票者 | 讓模型學完整分布而非極端值 |
 | 特徵 | 26 個 (含 RS/9, team_winning_pct) | RS/9 解構 W-L 非投手成分 |
 | 模型 | GradientBoosting + Ridge baseline | XGBoost 對小資料無顯著優勢、增加 dep |
