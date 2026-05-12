@@ -6,6 +6,10 @@ MLB Cy Young Award voter-share regression model.
 
 Updated daily at ~19:00 Taiwan time (UTC 11:00). AL+NL Top 10 predicted vote shares for the 2026 season.
 
+### 📊 Weekly Reports: [reports/](https://github.com/ccli-taipower/cyaward-claude/tree/main/reports)
+
+Generated every Monday at ~10:00 Taiwan time (UTC 02:00). Each `2026-Wxx.md` covers the previous 7 days — biggest rank movers (risers + fallers), week's #1 in each league, and a Top 10 snapshot.
+
 **Phase 1 (COMPLETE):** model trained and backtested on 2015–2025 BBWAA voting (10 years × 2 leagues = 20 winner slots).  
 **Phase 2 (COMPLETE):** live 2026 dashboard at the URL above + weekly markdown report; daily/weekly GitHub Actions cron deployed.
 
