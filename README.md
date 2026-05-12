@@ -141,7 +141,29 @@ The model uses **38 features** across 4 categories:
 | Statcast | 6 | xERA, xwOBA_against, Stuff+, Location+, Barrel%, HardHit% |
 | Context / derived | 16 | `era_z_score_neg`, `ip_relative_to_max`, `era_rank_in_league`, `FIP_rank_in_league`, `fWAR_rank_in_league`, `wins_rank_in_league`, … |
 
-The league-context features — especially "ERA dominance" (`era_z_score_neg`, `era_rank_in_league`) and "workhorse" (`ip_relative_to_max`) — were the most critical for predicting close races.
+### Model & feature importance
+
+The primary model is a `GradientBoostingRegressor` (350 trees, max_depth=3, learning_rate=0.05, subsample=0.8). A `Ridge` model is kept as a baseline (it scored only 10/20 winner hits vs GBR's 15/20 — multicollinearity hurts the linear model).
+
+Top 10 features by GBR importance (account for **88.4%** of total predictive weight):
+
+| # | Feature | Importance | What it captures |
+|---|---|---|---|
+| 1 | `fWAR_z_score` | 24.8% | Pitcher's fWAR z-score within league/year |
+| 2 | `fWAR_rank_in_league` | 18.9% | Pitcher's fWAR rank within league |
+| 3 | `fWAR` | 14.0% | Raw FanGraphs WAR |
+| 4 | `era_rank_in_league` | 7.4% | ERA rank within league (1 = leader) |
+| 5 | `ERA-` | 6.6% | Park/league-adjusted ERA |
+| 6 | `WHIP` | 5.4% | Walks + hits per inning |
+| 7 | `ip_relative_to_max` | 3.3% | IP / max(IP in league) — workhorse signal |
+| 8 | `K` | 2.9% | Strikeout count |
+| 9 | `wins_rank_in_league` | 2.6% | Win-total rank |
+| 10 | `ip_rank_in_league` | 2.4% | IP rank within league |
+
+**Take-aways:**
+- **fWAR-family features (top 3) = 57.8%** of the model's decisions — fWAR with league-context normalization is the spine of the predictor.
+- **ERA-dominance features (`era_rank_in_league` + `ERA-`) = 14.0%** — added in iteration #2 to fix cases like 2018 NL deGrom (1.70 ERA legend), and these are what pushed winner_hits from 8/16 → 13/16.
+- **Several features have ~0% importance** — `role_SP` (everyone above IP=50 is essentially SP), `league_AL` (voter behavior is similar across leagues), and the `late_*` features (zero-filled stubs because the FanGraphs monthly-split API is Cloudflare-blocked).
 
 ---
 
