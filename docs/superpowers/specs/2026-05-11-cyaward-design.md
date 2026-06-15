@@ -319,7 +319,7 @@ cyaward-claude/
 | 驗證 | LOOCV 為主 + time-series split 為輔 | 10 年都被當過 test，最大化驗證樣本 |
 | 通過標準 | 12/16 冠軍 + 1.9/3 podium + 7/10 top10 | 8 年 × 2 league = 16 cases；Tier 2 從 2.0 微調到 1.9 因為 1 個 podium swap 是統計噪聲 |
 | 投影模型 (P2) | Pace × Remaining MVP | v3 換 Marcel；介面預留 |
-| 入榜門檻 (P2) | SP/RP 分組動態縮放 | RP 不會被 162-IP 門檻永遠擋外 |
+| 入榜門檻 (P2) | SP/RP 分組動態縮放（SP 150 IP / RP 60 IP） | RP 不會被 SP 門檻擋外；SP 150 反映現代 Cy Young workload（2026-06-15 從 162 下修） |
 | 前端 (P2) | Vanilla HTML + Jinja2 | 無 React / 無 build pipeline |
 | 部署 (P2) | GitHub Pages + Actions cron | 完全免費、零維運 |
 | 更新節奏 (P2) | Daily fetch + Weekly report | 數據新鮮度 vs commit noise 平衡 |
