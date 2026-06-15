@@ -14,8 +14,12 @@ SEASON_START = date(2026, 3, 26)
 SEASON_END = date(2026, 9, 27)
 SEASON_LENGTH_DAYS = (SEASON_END - SEASON_START).days  # 185
 
-# Full-season IP floors (per spec)
-SP_FULL_SEASON_IP = 162
+# Full-season IP targets used to scale the dynamic dashboard threshold.
+# SP: 150 (lowered from MLB's 162 ERA-qualifier standard on 2026-06-15 to
+#      better reflect modern Cy Young workloads — short-rotation, six-man,
+#      and injury-shortened seasons that voters now routinely reward).
+# RP: 60 — soft convention for a heavy-usage reliever season.
+SP_FULL_SEASON_IP = 150
 RP_FULL_SEASON_IP = 60
 
 # Minimum IP at any point in season (avoid empty rankings in early April)

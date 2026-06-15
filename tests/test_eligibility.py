@@ -36,10 +36,11 @@ def test_season_progress_post_season_capped_at_one():
 def test_eligibility_thresholds_at_may_12():
     today = date(2026, 5, 12)
     sp_min, rp_min = eligibility.thresholds(today)
-    # season_progress ≈ 0.254, sp_min = max(25, 162*0.254) ≈ max(25, 41.1) = 41.1
-    assert sp_min == pytest.approx(162 * eligibility.season_progress(today))
+    # season_progress ≈ 0.254, sp_min = max(25, SP_FULL*0.254) — robust to constant change
+    assert sp_min == pytest.approx(eligibility.SP_FULL_SEASON_IP * eligibility.season_progress(today))
     assert sp_min >= 25
-    # rp_min = max(10, 60*0.254) ≈ max(10, 15.2) = 15.2
+    # rp_min = max(10, RP_FULL*0.254)
+    assert rp_min == pytest.approx(eligibility.RP_FULL_SEASON_IP * eligibility.season_progress(today))
     assert rp_min >= 10
 
 

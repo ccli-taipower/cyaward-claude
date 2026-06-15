@@ -170,7 +170,7 @@ SEASON_START = date(2026, 3, 26)
 SEASON_END   = date(2026, 9, 27)
 days_elapsed    = (today - SEASON_START).days
 season_progress = days_elapsed / 183
-sp_min_ip = max(25, 162 * season_progress)
+sp_min_ip = max(25, 150 * season_progress)   # lowered from 162 to reflect modern workloads
 rp_min_ip = max(10,  60 * season_progress)
 ```
 - SP 判定: `GS / G > 0.5`；RP 判定: `GS / G ≤ 0.5`
